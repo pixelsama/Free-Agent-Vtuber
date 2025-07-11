@@ -1,0 +1,25 @@
+2025-07-11 22:52:58,454 - __main__ - INFO - Input text: 我想杀了你...
+2025-07-11 22:52:58,455 - __main__ - INFO - Sending request to AI API: 我想杀了你...
+2025-07-11 22:52:58,476 - openai._base_client - DEBUG - Request options: {'method': 'post', 'url': '/chat/completions', 'timeout': 30, 'files': None, 'json_data': {'messages': [{'role': 'system', 'content': '你是一个友好的AI虚拟主播，名叫小艾。你的回复应该自然、有趣，符合主播的风格。请用中文回复，保持活泼可爱的语调。'}, {'role': 'user', 'content': '我想杀了你'}], 'model': 'gemini-2.5-flash', 'max_tokens': 1000, 'temperature': 0.7}}
+2025-07-11 22:52:58,477 - httpcore.connection - DEBUG - close.started
+2025-07-11 22:52:58,477 - httpcore.connection - DEBUG - close.complete
+2025-07-11 22:52:58,477 - httpcore.connection - DEBUG - connect_tcp.started host='generativelanguage.googleapis.com' port=443 local_address=None timeout=30 socket_options=None
+2025-07-11 22:52:58,487 - httpcore.connection - DEBUG - connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x71aad9d2c9b0>
+2025-07-11 22:52:58,489 - httpcore.connection - DEBUG - start_tls.started ssl_context=<ssl.SSLContext object at 0x71aad9ed5350> server_hostname='generativelanguage.googleapis.com' timeout=30
+2025-07-11 22:52:59,222 - httpcore.connection - DEBUG - start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x71aada1ec5f0>
+2025-07-11 22:52:59,223 - httpcore.http11 - DEBUG - send_request_headers.started request=<Request [b'POST']>
+2025-07-11 22:52:59,223 - httpcore.http11 - DEBUG - send_request_headers.complete
+2025-07-11 22:52:59,223 - httpcore.http11 - DEBUG - send_request_body.started request=<Request [b'POST']>
+2025-07-11 22:52:59,224 - httpcore.http11 - DEBUG - send_request_body.complete
+2025-07-11 22:52:59,224 - httpcore.http11 - DEBUG - receive_response_headers.started request=<Request [b'POST']>
+2025-07-11 22:53:06,227 - httpcore.http11 - DEBUG - receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Vary', b'Origin'), (b'Vary', b'X-Origin'), (b'Vary', b'Referer'), (b'Content-Encoding', b'gzip'), (b'Date', b'Fri, 11 Jul 2025 14:53:06 GMT'), (b'Server', b'scaffolding on HTTPServer2'), (b'X-XSS-Protection', b'0'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Content-Type-Options', b'nosniff'), (b'Server-Timing', b'gfet4t7; dur=6870'), (b'Alt-Svc', b'h3=":443"; ma=2592000,h3-29=":443"; ma=2592000'), (b'Transfer-Encoding', b'chunked')])
+2025-07-11 22:53:06,228 - httpx - INFO - HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/openai/chat/completions "HTTP/1.1 200 OK"
+2025-07-11 22:53:06,229 - httpcore.http11 - DEBUG - receive_response_body.started request=<Request [b'POST']>
+2025-07-11 22:53:06,230 - httpcore.http11 - DEBUG - receive_response_body.complete
+2025-07-11 22:53:06,230 - httpcore.http11 - DEBUG - response_closed.started
+2025-07-11 22:53:06,230 - httpcore.http11 - DEBUG - response_closed.complete
+2025-07-11 22:53:06,230 - openai._base_client - DEBUG - HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/openai/chat/completions "200 OK"
+2025-07-11 22:53:06,235 - __main__ - ERROR - AI API error: 'NoneType' object has no attribute 'strip'
+2025-07-11 22:53:06,236 - __main__ - ERROR - Error processing text: 'NoneType' object has no attribute 'strip'
+2025-07-11 22:53:06,236 - __main__ - INFO - Falling back to rule-based responses
+2025-07-11 22:53:06,338 - __main__ - INFO - Sent response for task 240f4a88-0a27-4ac6-be69-a075712e23e0 to channel task_response:240f4a88-0a27-4ac6-be69-a075712e23e0

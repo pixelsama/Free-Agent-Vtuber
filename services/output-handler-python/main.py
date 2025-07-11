@@ -14,7 +14,7 @@ import uvicorn
 
 # 配置日志
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,  # 改为DEBUG级别以便更好调试
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -94,33 +94,44 @@ class OutputHandler:
                 "error": "Redis connection not available"
             }))
             return
-            
+        
+        pubsub = None
         try:
-            # 订阅特定任务的响应频道
+            # 创建新的Redis连接用于订阅
             pubsub = redis_client.pubsub()
-            await pubsub.subscribe(f"task_response:{task_id}")
+            channel_name = f"task_response:{task_id}"
+            await pubsub.subscribe(channel_name)
             
-            logger.info(f"Subscribed to Redis channel: task_response:{task_id}")
+            logger.info(f"Subscribed to Redis channel: {channel_name}")
             task_status[task_id] = "waiting"
             
             # 设置超时时间 (5分钟)
             timeout = 300
             start_time = asyncio.get_event_loop().time()
             
+            # 跳过订阅确认消息
             async for message in pubsub.listen():
                 # 检查超时
                 if asyncio.get_event_loop().time() - start_time > timeout:
+                    logger.warning(f"Timeout waiting for response on {channel_name}")
                     await websocket.send_text(json.dumps({
                         "status": "error",
                         "error": "Processing timeout"
                     }))
                     break
+                
+                # 跳过订阅确认消息
+                if message["type"] == "subscribe":
+                    logger.debug(f"Subscribed to channel {message['channel']}")
+                    continue
                     
                 if message["type"] == "message":
                     try:
+                        logger.info(f"Received message on {channel_name}: {message['data'][:100]}...")
                         response_data = json.loads(message["data"])
                         await self._send_response(websocket, task_id, response_data)
                         task_status[task_id] = "completed"
+                        logger.info(f"Successfully processed response for task {task_id}")
                         break
                     except json.JSONDecodeError as e:
                         logger.error(f"Failed to parse Redis message: {e}")
@@ -129,9 +140,13 @@ class OutputHandler:
                             "error": "Invalid response format"
                         }))
                         break
-                        
-            await pubsub.unsubscribe(f"task_response:{task_id}")
-            await pubsub.close()
+                    except Exception as e:
+                        logger.error(f"Error processing message: {e}")
+                        await websocket.send_text(json.dumps({
+                            "status": "error",
+                            "error": f"Processing error: {str(e)}"
+                        }))
+                        break
                         
         except Exception as e:
             logger.error(f"Error waiting for Redis response: {e}")
@@ -139,6 +154,15 @@ class OutputHandler:
                 "status": "error",
                 "error": "Processing failed"
             }))
+        finally:
+            # 确保清理订阅
+            if pubsub:
+                try:
+                    await pubsub.unsubscribe(f"task_response:{task_id}")
+                    await pubsub.close()
+                    logger.debug(f"Cleaned up pubsub for task {task_id}")
+                except Exception as e:
+                    logger.error(f"Error cleaning up pubsub: {e}")
     
     async def _send_response(self, websocket: WebSocket, task_id: str, response_data: dict):
         try:
