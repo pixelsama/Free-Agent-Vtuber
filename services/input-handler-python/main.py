@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -9,8 +10,6 @@ import redis.asyncio as redis
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 import uvicorn
-
-app = FastAPI()
 
 # 配置日志
 logging.basicConfig(
@@ -26,6 +25,32 @@ active_connections: Dict[str, WebSocket] = {}
 # 临时文件存储目录
 TEMP_DIR = Path("/tmp/aivtuber_tasks")
 TEMP_DIR.mkdir(exist_ok=True)
+
+async def init_redis():
+    global redis_client
+    try:
+        redis_client = redis.Redis(host='localhost', port=6379, decode_responses=True)
+        await redis_client.ping()
+        logger.info("Connected to Redis")
+    except Exception as e:
+        logger.error(f"Failed to connect to Redis: {e}")
+        redis_client = None
+
+async def cleanup_redis():
+    if redis_client:
+        await redis_client.close()
+    logger.info("Input Handler shutdown")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 启动时执行
+    await init_redis()
+    logger.info("Input Handler started - ready to receive user inputs")
+    yield
+    # 关闭时执行
+    await cleanup_redis()
+
+app = FastAPI(lifespan=lifespan)
 
 class InputHandler:
     def __init__(self):
@@ -209,32 +234,11 @@ async def get():
     </html>
     """)
 
-async def init_redis():
-    global redis_client
-    try:
-        redis_client = redis.Redis(host='localhost', port=6379, decode_responses=True)
-        await redis_client.ping()
-        logger.info("Connected to Redis")
-    except Exception as e:
-        logger.error(f"Failed to connect to Redis: {e}")
-        redis_client = None
-
-@app.on_event("startup")
-async def startup_event():
-    await init_redis()
-    logger.info("Input Handler started - ready to receive user inputs")
-
-@app.on_event("shutdown") 
-async def shutdown_event():
-    if redis_client:
-        await redis_client.close()
-    logger.info("Input Handler shutdown")
-
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=8000,
+        port=8001,
         log_level="info",
         reload=True
     )

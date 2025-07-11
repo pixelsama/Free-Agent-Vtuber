@@ -1,0 +1,21 @@
+{
+    "gateway": {
+        "host": "0.0.0.0",
+        "port": 8000,
+        "log_level": "info"
+    },
+    "backend_services": {
+        "input": {
+            "url": "ws://localhost:8001",
+            "endpoint": "/ws/input"
+        },
+        "output": {
+            "url": "ws://localhost:8002", 
+            "endpoint": "/ws/output"
+        }
+    },
+    "proxy": {
+        "connection_timeout": 300,
+        "max_connections": 1000
+    }
+}
