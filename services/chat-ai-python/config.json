@@ -1,0 +1,21 @@
+{
+    "redis": {
+        "host": "localhost",
+        "port": 6379,
+        "input_queue": "user_input_queue",
+        "response_channel_prefix": "task_response:"
+    },
+    "ai": {
+        "model_name": "简单回复模型",
+        "response_timeout": 30,
+        "max_text_length": 1000
+    },
+    "processing": {
+        "max_concurrent_tasks": 10,
+        "task_timeout": 60
+    },
+    "logging": {
+        "level": "INFO",
+        "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    }
+}
