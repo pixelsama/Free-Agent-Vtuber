@@ -1,0 +1,25 @@
+{
+    "websocket": {
+        "input_endpoint": "/ws/input",
+        "max_connections": 1000,
+        "timeout": 300
+    },
+    "upload": {
+        "max_file_size": "50MB",
+        "chunk_size": "64KB",
+        "supported_formats": ["text/plain", "audio/webm"]
+    },
+    "redis": {
+        "host": "localhost",
+        "port": 6379,
+        "input_queue": "user_input_queue"
+    },
+    "server": {
+        "host": "0.0.0.0",
+        "port": 8000,
+        "log_level": "info"
+    },
+    "storage": {
+        "temp_dir": "/tmp/aivtuber_tasks"
+    }
+}
