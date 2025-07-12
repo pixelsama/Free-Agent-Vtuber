@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIVtuber 服务管理器</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 AIVtuber 服务管理器</h1>
+            <p>实时监控和管理您的微服务</p>
+        </header>
+
+        <div class="services-grid" id="servicesGrid">
+            <!-- 服务卡片将在这里动态生成 -->
+        </div>
+
+        <div class="actions">
+            <button id="refreshBtn" class="btn btn-secondary">🔄 刷新状态</button>
+            <button id="startAllBtn" class="btn btn-success">▶️ 全部启动</button>
+            <button id="stopAllBtn" class="btn btn-danger">⏹️ 全部停止</button>
+        </div>
+
+        <div class="logs">
+            <h2>操作日志</h2>
+            <div id="logContainer" class="log-container">
+                <p class="log-item">系统已启动，准备就绪</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

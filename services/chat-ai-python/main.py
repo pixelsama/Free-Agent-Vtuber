@@ -151,31 +151,84 @@ class TaskProcessor:
     def __init__(self):
         self.ai_processor = AIProcessor()
         
-    async def process_task(self, task_data: dict):
-        """处理单个任务"""
+    async def process_memory_update(self, event_data: dict):
+        """处理记忆更新事件"""
         try:
-            task_id = task_data["task_id"]
-            task_type = task_data["type"]
-            input_file = task_data["input_file"]
+            user_id = event_data.get("user_id", "anonymous")
+            message_id = event_data.get("message_id")
             
-            logger.info(f"Processing task {task_id}, type: {task_type}")
-            processing_tasks[task_id] = "processing"
+            logger.info(f"Processing memory update for user {user_id}, message {message_id}")
             
-            if task_type == "text":
-                await self._process_text_task(task_id, input_file)
-            elif task_type == "audio":
-                await self._process_audio_task(task_id, input_file)
-            else:
-                logger.warning(f"Unknown task type: {task_type}")
-                await self._send_error_response(task_id, f"Unknown task type: {task_type}")
-                
+            # 从记忆模块获取用户上下文
+            context = await self._get_user_context(user_id)
+            
+            if not context:
+                logger.warning(f"No context found for user {user_id}")
+                return
+            
+            # 获取最新的用户消息
+            latest_message = context[-1] if context else None
+            if not latest_message or latest_message.get("source") != "user":
+                logger.warning("No valid user message found in context")
+                return
+            
+            input_text = latest_message.get("content", "")
+            
+            # AI处理
+            response_text = await self.ai_processor.process_text(input_text)
+            
+            # 发布AI响应到记忆模块
+            await self._publish_ai_response(user_id, response_text, message_id)
+            
         except Exception as e:
-            logger.error(f"Error processing task: {e}")
-            task_id = task_data.get("task_id", "unknown")
-            await self._send_error_response(task_id, str(e))
-        finally:
-            if task_id in processing_tasks:
-                del processing_tasks[task_id]
+            logger.error(f"Error processing memory update: {e}")
+    
+    async def _get_user_context(self, user_id: str) -> list:
+        """从记忆模块获取用户上下文"""
+        try:
+            # 这里应该调用记忆模块的API获取上下文
+            # 暂时返回空列表，实际实现需要HTTP请求或Redis查询
+            context_key = f"memory:user_sessions:{user_id}"
+            
+            if redis_client:
+                # 获取最近的消息
+                messages_json = await redis_client.lrange(context_key, -20, -1)
+                context = []
+                for msg_json in messages_json:
+                    try:
+                        message = json.loads(msg_json)
+                        context.append(message)
+                    except json.JSONDecodeError:
+                        continue
+                return context
+            
+            return []
+            
+        except Exception as e:
+            logger.error(f"Error getting user context: {e}")
+            return []
+    
+    async def _publish_ai_response(self, user_id: str, response_text: str, original_message_id: str):
+        """发布AI响应到记忆模块"""
+        try:
+            if not redis_client:
+                logger.error("Redis client not available")
+                return
+            
+            response_data = {
+                "user_id": user_id,
+                "text": response_text,
+                "original_message_id": original_message_id,
+                "timestamp": asyncio.get_event_loop().time()
+            }
+            
+            # 发布到AI响应频道，供记忆模块监听
+            await redis_client.publish("ai_responses", json.dumps(response_data))
+            
+            logger.info(f"Published AI response for user {user_id}")
+            
+        except Exception as e:
+            logger.error(f"Error publishing AI response: {e}")
     
     async def _process_text_task(self, task_id: str, input_file: str):
         """处理文本任务"""
@@ -316,36 +369,37 @@ async def cleanup():
         await ai_client.close()
     logger.info("AI Processor shutdown")
 
-async def queue_listener():
-    """监听Redis输入队列"""
+async def memory_update_listener():
+    """监听记忆更新事件"""
     if not redis_client:
         logger.error("Redis client not available")
         return
         
     processor = TaskProcessor()
-    queue_name = config.get("redis", {}).get("input_queue", "user_input_queue")
+    memory_channel = "memory_updates"
     
-    logger.info(f"Starting queue listener for {queue_name}")
+    logger.info(f"Starting memory update listener for {memory_channel}")
     
-    while True:
-        try:
-            # 从队列中获取任务 (阻塞式)
-            result = await redis_client.brpop(queue_name, timeout=1)
-            
-            if result:
-                queue_name_result, message = result
-                task_data = json.loads(message)
+    pubsub = redis_client.pubsub()
+    await pubsub.subscribe(memory_channel)
+    
+    async for message in pubsub.listen():
+        if message["type"] == "message":
+            try:
+                event_data = json.loads(message["data"])
                 
-                logger.info(f"Received task: {task_data}")
+                # 只处理需要AI响应的事件
+                if event_data.get("require_ai_response", False) and event_data.get("source") == "user":
+                    logger.info(f"Received memory update event: {event_data}")
+                    
+                    # 异步处理记忆更新事件
+                    asyncio.create_task(processor.process_memory_update(event_data))
                 
-                # 异步处理任务
-                asyncio.create_task(processor.process_task(task_data))
-                
-        except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON in queue message: {e}")
-        except Exception as e:
-            logger.error(f"Error in queue listener: {e}")
-            await asyncio.sleep(1)  # 出错时等待1秒
+            except json.JSONDecodeError as e:
+                logger.error(f"Invalid JSON in memory update: {e}")
+            except Exception as e:
+                logger.error(f"Error in memory update listener: {e}")
+                await asyncio.sleep(1)
 
 async def main():
     """主函数"""
@@ -367,8 +421,8 @@ async def main():
     await init_ai()
     
     try:
-        # 启动队列监听器
-        await queue_listener()
+        # 启动记忆更新监听器
+        await memory_update_listener()
     except KeyboardInterrupt:
         logger.info("Received shutdown signal")
     finally:

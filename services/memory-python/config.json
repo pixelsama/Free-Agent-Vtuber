@@ -1,0 +1,19 @@
+{
+  "redis": {
+    "host": "localhost",
+    "port": 6379,
+    "input_queue": "user_input_queue"
+  },
+  "memory": {
+    "max_memory_size": 100,
+    "memory_ttl_hours": 24,
+    "context_window": 20,
+    "enable_global_context": true,
+    "global_memory_limit": 1000,
+    "cleanup_interval_hours": 6,
+    "cleanup_hours": 48
+  },
+  "logging": {
+    "level": "INFO"
+  }
+}
