@@ -1,4 +1,61 @@
-2025-07-12 11:14:52[AI聊天模块]今天心情怎么样呀？有什么想和小...
-2025-07-12 11:14:52[AI聊天模块]2025-07-12 11:14:52,117 - __main__ - INFO - Published AI response for user anonymous
-2025-07-12 11:14:52[记忆模块]2025-07-12 11:14:52,119 - memory_manager - INFO - Stored message anonymous_1752290092117 from ai
-2025-07-12 11:14:52[记忆模块]2025-07-12 11:14:52,119 - __main__ - INFO - Stored AI response anonymous_1752290092117
+2025-07-12 12:16:48[网关模块]2025-07-12 12:16:48,395 - main - INFO - WebSocket disconnect: output_2 -> backend
+2025-07-12 12:16:48[网关模块]INFO: connection closed
+2025-07-12 12:16:48[网关模块]2025-07-12 12:16:48,396 - main - INFO - Connection output_2 cleaned up
+2025-07-12 12:16:48[输出处理模块]INFO: connection closed
+2025-07-12 12:16:49[网关模块]INFO: ('127.0.0.1', 39836) - "WebSocket /ws/input" [accepted]
+2025-07-12 12:16:49[网关模块]2025-07-12 12:16:49,473 - main - INFO - Client connected to input (ID: input_3)
+2025-07-12 12:16:49[网关模块]INFO: connection open
+2025-07-12 12:16:49[网关模块]2025-07-12 12:16:49,475 - main - INFO - Connected to backend: ws://localhost:8001/ws/input
+2025-07-12 12:16:49[网关模块]INFO: ('127.0.0.1', 39840) - "WebSocket /ws/output/57f602ca-7cdb-4a63-a665-87ca466a2e64" [accepted]
+2025-07-12 12:16:49[网关模块]2025-07-12 12:16:49,763 - main - INFO - Client connected to output (ID: output_4)
+2025-07-12 12:16:49[网关模块]INFO: connection open
+2025-07-12 12:16:49[网关模块]2025-07-12 12:16:49,769 - main - INFO - Connected to backend: ws://localhost:8002/ws/output/57f602ca-7cdb-4a63-a665-87ca466a2e64
+2025-07-12 12:16:49[输出处理模块]INFO: ('127.0.0.1', 35836) - "WebSocket /ws/output/57f602ca-7cdb-4a63-a665-87ca466a2e64" [accepted]
+2025-07-12 12:16:49[输出处理模块]2025-07-12 12:16:49,767 - main - INFO - Output connection established for task_id: 57f602ca-7cdb-4a63-a665-87ca466a2e64
+2025-07-12 12:16:49[输出处理模块]INFO: connection open
+2025-07-12 12:16:49[输出处理模块]2025-07-12 12:16:49,771 - main - INFO - Subscribed to Redis channel: task_response:57f602ca-7cdb-4a63-a665-87ca466a2e64
+2025-07-12 12:16:49[输出处理模块]2025-07-12 12:16:49,771 - main - DEBUG - Subscribed to channel task_response:57f602ca-7cdb-4a63-a665-87ca466a2e64
+2025-07-12 12:16:49[输入处理模块]INFO: ('127.0.0.1', 54718) - "WebSocket /ws/input" [accepted]
+2025-07-12 12:16:49[输入处理模块]INFO: connection open
+2025-07-12 12:16:49[输入处理模块]2025-07-12 12:16:49,475 - main - INFO - Input connection established, task_id: 57f602ca-7cdb-4a63-a665-87ca466a2e64
+2025-07-12 12:16:52[网关模块]2025-07-12 12:16:52,714 - main - INFO - WebSocket disconnect: input_3 -> backend
+2025-07-12 12:16:52[网关模块]INFO: connection closed
+2025-07-12 12:16:52[网关模块]2025-07-12 12:16:52,715 - main - INFO - Connection input_3 cleaned up
+2025-07-12 12:16:52[输入处理模块]2025-07-12 12:16:52,709 - main - INFO - Saved text input for task 57f602ca-7cdb-4a63-a665-87ca466a2e64: 你好...
+2025-07-12 12:16:52[输入处理模块]2025-07-12 12:16:52,713 - main - INFO - Sent task 57f602ca-7cdb-4a63-a665-87ca466a2e64 to Redis queue: text
+2025-07-12 12:16:52[输入处理模块]INFO: connection closed
+2025-07-12 12:16:52[记忆模块]2025-07-12 12:16:52,710 - __main__ - INFO - Received input task: {'task_id': '57f602ca-7cdb-4a63-a665-87ca466a2e64', 'type': 'text', 'input_file': '/tmp/aivtuber_tasks/57f602ca-7cdb-4a63-a665-87ca466a2e64/input.txt', 'timestamp': 10258.886605367}
+2025-07-12 12:16:52[记忆模块]2025-07-12 12:16:52,711 - __main__ - INFO - Processing memory task 57f602ca-7cdb-4a63-a665-87ca466a2e64, type: text
+2025-07-12 12:16:52[记忆模块]2025-07-12 12:16:52,711 - __main__ - INFO - Storing user text: 你好...
+2025-07-12 12:16:52[记忆模块]2025-07-12 12:16:52,718 - memory_manager - INFO - Published memory update event for message anonymous_1752293812711
+2025-07-12 12:16:52[记忆模块]2025-07-12 12:16:52,718 - memory_manager - INFO - Stored message anonymous_1752293812711 from user
+2025-07-12 12:16:52[记忆模块]2025-07-12 12:16:52,718 - __main__ - INFO - Stored user message anonymous_1752293812711
+2025-07-12 12:16:52[AI聊天模块]2025-07-12 12:16:52,719 - __main__ - INFO - Received memory update event: {'event_type': 'memory_update', 'user_id': 'anonymous', 'message_id': 'anonymous_1752293812711', 'source': 'user', 'require_ai_response': True, 'timestamp': '2025-07-12T12:16:52.711106'}
+2025-07-12 12:16:52[AI聊天模块]2025-07-12 12:16:52,719 - __main__ - INFO - Processing memory update for user anonymous, message anonymous_1752293812711
+2025-07-12 12:16:52[AI聊天模块]2025-07-12 12:16:52,723 - __main__ - INFO - Sending request to AI API: 你好...
+2025-07-12 12:16:52[AI聊天模块]2025-07-12 12:16:52,725 - openai._base_client - DEBUG - Request options: {'method': 'post', 'url': '/chat/completions', 'timeout': 30, 'files': None, 'json_data': {'messages': [{'role': 'system', 'content': '你是一个友好的AI虚拟主播，名叫小艾。你的回复应该自然、有趣，符合主播的风格。请用中文回复，保持活泼可爱的语调。'}, {'role': 'user', 'content': '你好'}], 'model': 'gemini-2.5-flash', 'max_tokens': 1000, 'temperature': 0.7}}
+2025-07-12 12:16:52[AI聊天模块]2025-07-12 12:16:52,726 - httpcore.connection - DEBUG - close.started
+2025-07-12 12:16:52[AI聊天模块]2025-07-12 12:16:52,726 - httpcore.connection - DEBUG - close.complete
+2025-07-12 12:16:52[AI聊天模块]2025-07-12 12:16:52,727 - httpcore.connection - DEBUG - connect_tcp.started host='generativelanguage.googleapis.com' port=443 local_address=None timeout=30 socket_options=None
+2025-07-12 12:16:52[AI聊天模块]2025-07-12 12:16:52,732 - httpcore.connection - DEBUG - connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x7998346bf050>
+2025-07-12 12:16:52[AI聊天模块]2025-07-12 12:16:52,732 - httpcore.connection - DEBUG - start_tls.started ssl_context=<ssl.SSLContext object at 0x799834644dd0> server_hostname='generativelanguage.googleapis.com' timeout=30
+2025-07-12 12:16:53[AI聊天模块]2025-07-12 12:16:53,385 - httpcore.connection - DEBUG - start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x7998346bdf70>
+2025-07-12 12:16:53[AI聊天模块]2025-07-12 12:16:53,385 - httpcore.http11 - DEBUG - send_request_headers.started request=<Request [b'POST']>
+2025-07-12 12:16:53[AI聊天模块]2025-07-12 12:16:53,386 - httpcore.http11 - DEBUG - send_request_headers.complete
+2025-07-12 12:16:53[AI聊天模块]2025-07-12 12:16:53,386 - httpcore.http11 - DEBUG - send_request_body.started request=<Request [b'POST']>
+2025-07-12 12:16:53[AI聊天模块]2025-07-12 12:16:53,386 - httpcore.http11 - DEBUG - send_request_body.complete
+2025-07-12 12:16:53[AI聊天模块]2025-07-12 12:16:53,386 - httpcore.http11 - DEBUG - receive_response_headers.started request=<Request [b'POST']>
+2025-07-12 12:16:56[记忆模块]2025-07-12 12:16:56,202 - memory_manager - INFO - Stored message anonymous_1752293816201 from ai
+2025-07-12 12:16:56[记忆模块]2025-07-12 12:16:56,202 - __main__ - INFO - Stored AI response anonymous_1752293816201
+2025-07-12 12:16:56[AI聊天模块]2025-07-12 12:16:56,198 - httpcore.http11 - DEBUG - receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Vary', b'Origin'), (b'Vary', b'X-Origin'), (b'Vary', b'Referer'), (b'Content-Encoding', b'gzip'), (b'Date', b'Sat, 12 Jul 2025 04:16:53 GMT'), (b'Server', b'scaffolding on HTTPServer2'), (b'X-XSS-Protection', b'0'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Content-Type-Options', b'nosniff'), (b'Server-Timing', b'gfet4t7; dur=2621'), (b'Alt-Svc', b'h3=":443"; ma=2592000,h3-29=":443"; ma=2592000'), (b'Transfer-Encoding', b'chunked')])
+2025-07-12 12:16:56[AI聊天模块]2025-07-12 12:16:56,199 - httpx - INFO - HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/openai/chat/completions "HTTP/1.1 200 OK"
+2025-07-12 12:16:56[AI聊天模块]2025-07-12 12:16:56,199 - httpcore.http11 - DEBUG - receive_response_body.started request=<Request [b'POST']>
+2025-07-12 12:16:56[AI聊天模块]2025-07-12 12:16:56,200 - httpcore.http11 - DEBUG - receive_response_body.complete
+2025-07-12 12:16:56[AI聊天模块]2025-07-12 12:16:56,200 - httpcore.http11 - DEBUG - response_closed.started
+2025-07-12 12:16:56[AI聊天模块]2025-07-12 12:16:56,200 - httpcore.http11 - DEBUG - response_closed.complete
+2025-07-12 12:16:56[AI聊天模块]2025-07-12 12:16:56,200 - openai._base_client - DEBUG - HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/openai/chat/completions "200 OK"
+2025-07-12 12:16:56[AI聊天模块]2025-07-12 12:16:56,201 - __main__ - INFO - AI response received: 哈喽哈喽！✨ 你好呀！我是你们可爱又活泼的小艾！👋
+2025-07-12 12:16:56[AI聊天模块]
+2025-07-12 12:16:56[AI聊天模块]很高兴在这里见到你哦~ 今天过得怎么样呀？有什...
+2025-07-12 12:16:56[AI聊天模块]2025-07-12 12:16:56,201 - __main__ - INFO - Published AI response for user anonymous
+2025-07-12 12:16:56[AI聊天模块]2025-07-12 12:16:56,302 - __main__ - INFO - Sent response for task anonymous_10262377 to channel task_response:anonymous_10262377

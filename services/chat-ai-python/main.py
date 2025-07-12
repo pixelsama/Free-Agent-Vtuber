@@ -68,6 +68,14 @@ class AIProcessor:
             messages = []
             if self.system_prompt:
                 messages.append({"role": "system", "content": self.system_prompt})
+            
+            # 获取全局对话历史上下文（虚拟偶像共享所有记忆）
+            context = await self._get_global_context()
+            for msg in context:
+                role = "user" if msg["source"] == "user" else "assistant"
+                messages.append({"role": role, "content": msg["content"]})
+            
+            # 添加当前用户消息
             messages.append({"role": "user", "content": text})
             
             logger.info(f"Sending request to AI API: {text[:50]}...")
@@ -174,14 +182,46 @@ class TaskProcessor:
             
             input_text = latest_message.get("content", "")
             
-            # AI处理
+            # AI处理（使用全局记忆）
             response_text = await self.ai_processor.process_text(input_text)
             
             # 发布AI响应到记忆模块
             await self._publish_ai_response(user_id, response_text, message_id)
             
+            # 同时发送到输出模块，使用接收到的原始 task_id
+            original_task_id = event_data.get("task_id")
+            if original_task_id:
+                await self._send_response(original_task_id, response_text, None)
+            else:
+                # 如果没有原始task_id，使用旧的方法作为fallback
+                task_id = f"{user_id}_{int(asyncio.get_event_loop().time() * 1000)}"
+                await self._send_response(task_id, response_text, None)
+            
         except Exception as e:
             logger.error(f"Error processing memory update: {e}")
+    
+    async def _get_global_context(self) -> list:
+        """从记忆模块获取全局上下文（虚拟偶像的完整记忆）"""
+        try:
+            context_key = "memory:global_context"
+            
+            if redis_client:
+                # 获取最近的全局消息
+                messages_json = await redis_client.lrange(context_key, -20, -1)
+                context = []
+                for msg_json in messages_json:
+                    try:
+                        message = json.loads(msg_json)
+                        context.append(message)
+                    except json.JSONDecodeError:
+                        continue
+                return context
+            
+            return []
+            
+        except Exception as e:
+            logger.error(f"Error getting global context: {e}")
+            return []
     
     async def _get_user_context(self, user_id: str) -> list:
         """从记忆模块获取用户上下文"""
@@ -239,7 +279,7 @@ class TaskProcessor:
             
             logger.info(f"Input text: {input_text[:100]}...")
             
-            # AI处理
+            # AI处理（使用全局记忆）
             response_text = await self.ai_processor.process_text(input_text)
             
             # 发送响应

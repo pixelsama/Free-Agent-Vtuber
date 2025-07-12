@@ -180,7 +180,8 @@ class MemoryManager:
                 "message_id": message_data["message_id"],
                 "source": message_data["source"],
                 "require_ai_response": message_data["require_ai_response"],
-                "timestamp": message_data["timestamp"]
+                "timestamp": message_data["timestamp"],
+                "task_id": message_data.get("metadata", {}).get("task_id")
             }
             
             await self.redis_client.publish(
