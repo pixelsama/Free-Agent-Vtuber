@@ -71,6 +71,7 @@ class AIProcessor:
             
             # 获取全局对话历史上下文（虚拟偶像共享所有记忆）
             context = await self._get_global_context()
+            logger.info(f"Retrieved {len(context)} messages from global context")
             for msg in context:
                 role = "user" if msg["source"] == "user" else "assistant"
                 messages.append({"role": role, "content": msg["content"]})
@@ -154,6 +155,29 @@ class AIProcessor:
         except Exception as e:
             logger.error(f"Error processing audio: {e}")
             return "抱歉，音频处理出现问题。", None
+    
+    async def _get_global_context(self) -> list:
+        """从记忆模块获取全局上下文（虚拟偶像的完整记忆）"""
+        try:
+            context_key = "memory:global_context"
+            
+            if redis_client:
+                # 获取最近的全局消息
+                messages_json = await redis_client.lrange(context_key, -20, -1)
+                context = []
+                for msg_json in messages_json:
+                    try:
+                        message = json.loads(msg_json)
+                        context.append(message)
+                    except json.JSONDecodeError:
+                        continue
+                return context
+            
+            return []
+            
+        except Exception as e:
+            logger.error(f"Error getting global context: {e}")
+            return []
 
 class TaskProcessor:
     def __init__(self):
@@ -199,29 +223,6 @@ class TaskProcessor:
             
         except Exception as e:
             logger.error(f"Error processing memory update: {e}")
-    
-    async def _get_global_context(self) -> list:
-        """从记忆模块获取全局上下文（虚拟偶像的完整记忆）"""
-        try:
-            context_key = "memory:global_context"
-            
-            if redis_client:
-                # 获取最近的全局消息
-                messages_json = await redis_client.lrange(context_key, -20, -1)
-                context = []
-                for msg_json in messages_json:
-                    try:
-                        message = json.loads(msg_json)
-                        context.append(message)
-                    except json.JSONDecodeError:
-                        continue
-                return context
-            
-            return []
-            
-        except Exception as e:
-            logger.error(f"Error getting global context: {e}")
-            return []
     
     async def _get_user_context(self, user_id: str) -> list:
         """从记忆模块获取用户上下文"""
