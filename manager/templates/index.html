@@ -21,12 +21,43 @@
             <button id="refreshBtn" class="btn btn-secondary">🔄 刷新状态</button>
             <button id="startAllBtn" class="btn btn-success">▶️ 全部启动</button>
             <button id="stopAllBtn" class="btn btn-danger">⏹️ 全部停止</button>
+            <button id="showLogsBtn" class="btn btn-primary">📋 查看日志</button>
         </div>
 
         <div class="logs">
             <h2>操作日志</h2>
             <div id="logContainer" class="log-container">
                 <p class="log-item">系统已启动，准备就绪</p>
+            </div>
+        </div>
+
+        <!-- 日志查看模态框 -->
+        <div id="logModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>📋 服务日志查看器</h2>
+                    <span class="close">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div class="log-controls">
+                        <select id="serviceSelector" class="form-control">
+                            <option value="all">所有服务</option>
+                        </select>
+                        <button id="refreshLogsBtn" class="btn btn-secondary">🔄 刷新</button>
+                        <button id="clearLogsBtn" class="btn btn-warning">🧹 清空</button>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="autoScrollCheck" checked>
+                            自动滚动
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="realTimeCheck">
+                            实时更新
+                        </label>
+                    </div>
+                    <div id="serviceLogContainer" class="service-log-container">
+                        <!-- 日志内容将在这里显示 -->
+                    </div>
+                </div>
             </div>
         </div>
     </div>

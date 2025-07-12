@@ -1,6 +1,7 @@
 class ServiceManager {
     constructor() {
         this.services = [];
+        this.eventSource = null;
         this.init();
     }
 
@@ -8,6 +9,7 @@ class ServiceManager {
         this.loadServices();
         this.bindEvents();
         this.startAutoRefresh();
+        this.initLogModal();
     }
 
     async loadServices() {
@@ -162,6 +164,203 @@ class ServiceManager {
         document.getElementById('stopAllBtn').addEventListener('click', () => {
             this.stopAllServices();
         });
+
+        document.getElementById('showLogsBtn').addEventListener('click', () => {
+            this.showLogModal();
+        });
+    }
+
+    initLogModal() {
+        const modal = document.getElementById('logModal');
+        const closeBtn = modal.querySelector('.close');
+        
+        // 关闭模态框
+        closeBtn.addEventListener('click', () => {
+            this.hideLogModal();
+        });
+        
+        // 点击背景关闭
+        window.addEventListener('click', (event) => {
+            if (event.target === modal) {
+                this.hideLogModal();
+            }
+        });
+
+        // 绑定日志控制事件
+        document.getElementById('serviceSelector').addEventListener('change', (e) => {
+            this.loadServiceLogs(e.target.value);
+        });
+
+        document.getElementById('refreshLogsBtn').addEventListener('click', () => {
+            const selectedService = document.getElementById('serviceSelector').value;
+            this.loadServiceLogs(selectedService);
+        });
+
+        document.getElementById('clearLogsBtn').addEventListener('click', () => {
+            this.clearLogs();
+        });
+
+        document.getElementById('realTimeCheck').addEventListener('change', (e) => {
+            if (e.target.checked) {
+                this.startRealTimeLogs();
+            } else {
+                this.stopRealTimeLogs();
+            }
+        });
+    }
+
+    showLogModal() {
+        const modal = document.getElementById('logModal');
+        modal.style.display = 'block';
+        
+        // 更新服务选择器
+        this.updateServiceSelector();
+        
+        // 默认加载所有日志
+        this.loadServiceLogs('all');
+    }
+
+    hideLogModal() {
+        const modal = document.getElementById('logModal');
+        modal.style.display = 'none';
+        
+        // 停止实时日志
+        this.stopRealTimeLogs();
+        document.getElementById('realTimeCheck').checked = false;
+    }
+
+    updateServiceSelector() {
+        const selector = document.getElementById('serviceSelector');
+        selector.innerHTML = '<option value="all">所有服务</option>';
+        
+        this.services.forEach(service => {
+            const option = document.createElement('option');
+            option.value = service.id;
+            option.textContent = service.name;
+            selector.appendChild(option);
+        });
+    }
+
+    async loadServiceLogs(serviceId) {
+        try {
+            const url = serviceId === 'all' ? '/api/logs' : `/api/logs/${serviceId}`;
+            const response = await fetch(url);
+            const logs = await response.json();
+            
+            this.displayLogs(logs);
+        } catch (error) {
+            console.error('加载日志失败:', error);
+        }
+    }
+
+    displayLogs(logs) {
+        const container = document.getElementById('serviceLogContainer');
+        container.innerHTML = '';
+        
+        if (logs.length === 0) {
+            container.innerHTML = '<div style="text-align: center; color: #888; margin-top: 50px;">暂无日志</div>';
+            return;
+        }
+        
+        logs.forEach(log => {
+            const logEntry = this.createLogEntry(log);
+            container.appendChild(logEntry);
+        });
+        
+        // 自动滚动到底部
+        if (document.getElementById('autoScrollCheck').checked) {
+            container.scrollTop = container.scrollHeight;
+        }
+    }
+
+    createLogEntry(log) {
+        const entry = document.createElement('div');
+        entry.className = `log-entry ${log.type}`;
+        
+        const timestamp = document.createElement('span');
+        timestamp.className = 'log-timestamp';
+        timestamp.textContent = log.timestamp;
+        
+        const service = document.createElement('span');
+        service.className = 'log-service';
+        service.textContent = `[${this.getServiceName(log.service_id)}]`;
+        
+        const message = document.createElement('span');
+        message.className = 'log-message';
+        message.textContent = log.message;
+        
+        entry.appendChild(timestamp);
+        entry.appendChild(service);
+        entry.appendChild(message);
+        
+        return entry;
+    }
+
+    async clearLogs() {
+        const selectedService = document.getElementById('serviceSelector').value;
+        
+        try {
+            const url = selectedService === 'all' ? '/api/logs/clear' : `/api/logs/clear/${selectedService}`;
+            const response = await fetch(url, { method: 'POST' });
+            const result = await response.json();
+            
+            if (result.success) {
+                this.loadServiceLogs(selectedService);
+                this.addLog(`已清空日志: ${selectedService === 'all' ? '所有服务' : this.getServiceName(selectedService)}`, 'success');
+            }
+        } catch (error) {
+            this.addLog(`清空日志失败: ${error.message}`, 'error');
+        }
+    }
+
+    startRealTimeLogs() {
+        if (this.eventSource) {
+            this.eventSource.close();
+        }
+        
+        this.eventSource = new EventSource('/api/logs/stream');
+        
+        this.eventSource.onmessage = (event) => {
+            const log = JSON.parse(event.data);
+            
+            if (log.type === 'heartbeat') {
+                return;
+            }
+            
+            // 检查是否需要显示这条日志
+            const selectedService = document.getElementById('serviceSelector').value;
+            if (selectedService !== 'all' && selectedService !== log.service_id) {
+                return;
+            }
+            
+            // 添加到日志容器
+            const container = document.getElementById('serviceLogContainer');
+            const logEntry = this.createLogEntry(log);
+            container.appendChild(logEntry);
+            
+            // 限制显示的日志数量
+            const entries = container.children;
+            if (entries.length > 500) {
+                container.removeChild(entries[0]);
+            }
+            
+            // 自动滚动
+            if (document.getElementById('autoScrollCheck').checked) {
+                container.scrollTop = container.scrollHeight;
+            }
+        };
+        
+        this.eventSource.onerror = (error) => {
+            console.error('实时日志连接错误:', error);
+            this.stopRealTimeLogs();
+        };
+    }
+
+    stopRealTimeLogs() {
+        if (this.eventSource) {
+            this.eventSource.close();
+            this.eventSource = null;
+        }
     }
 
     startAutoRefresh() {
