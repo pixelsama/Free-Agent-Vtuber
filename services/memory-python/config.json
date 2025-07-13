@@ -11,7 +11,42 @@
     "enable_global_context": true,
     "global_memory_limit": 1000,
     "cleanup_interval_hours": 6,
-    "cleanup_hours": 48
+    "cleanup_hours": 48,
+    
+    "summary": {
+      "enable": true,
+      "trigger_ratio": 0.8,
+      "summarize_ratio": 0.6,
+      
+      "retry_policy": {
+        "max_retries": 3,
+        "retry_intervals_seconds": [3600, 7200, 14400],
+        "failure_cooldown_seconds": 300
+      },
+      
+      "ai_config": {
+        "provider": "openai_compatible",
+        "base_url": "https://api.openai.com/v1/",
+        "model": "gpt-4o-mini",
+        "api_key_env": "OPENAI_API_KEY",
+        "timeout": 60,
+        "max_retries": 3,
+        "temperature": 0.3
+      },
+      
+      "summary_format": {
+        "include_topics": true,
+        "include_emotions": true,
+        "include_key_events": true,
+        "max_summary_length": 500,
+        "compression_ratio": 0.3
+      },
+      
+      "prompts": {
+        "system_prompt": "你是一个专业的记忆总结助手，负责总结用户的对话记忆。",
+        "user_prompt_template": "请总结以下记忆内容，包含普通对话和之前的结构化总结：\n\n处理规则：\n1. 优先总结普通对话记录，保留关键信息\n2. 对于已有的结构化总结，尽量保持不变\n3. 如果结构化总结过多，只保留最重要和最近的\n4. 输出为JSON格式的结构化总结\n\n记忆内容：\n{memories}\n\n要求输出格式：\n{\n  \"type\": \"memory_summary\",\n  \"topics\": [...],\n  \"key_events\": [...],\n  \"emotions\": [...],\n  \"retained_summaries\": [...],\n  \"interaction_count\": 总条数\n}"
+      }
+    }
   },
   "logging": {
     "level": "INFO"
