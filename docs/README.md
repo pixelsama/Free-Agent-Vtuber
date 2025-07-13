@@ -14,9 +14,12 @@
 3.  [开始使用](#开始使用)
     * [先决条件](#先决条件)
     * [安装与运行](#安装与运行)
-4.  [开发路线图](#开发路线图)
-5.  [参与贡献](#参与贡献)
-6.  [许可证](#许可证)
+4.  [开发与测试](#开发与测试)
+    * [开发环境](#开发环境)
+    * [运行测试](#运行测试)
+5.  [开发路线图](#开发路线图)
+6.  [参与贡献](#参与贡献)
+7.  [许可证](#许可证)
 
 ## 关于项目
 
@@ -38,6 +41,7 @@
 * **虚拟形象驱动**: [VTube Studio](https://store.steampowered.com/app/1325860/VTube_Studio/) (通过其API进行控制)
 * **AI 大语言模型**: 可插拔设计，支持各类 LLM API (e.g., OpenAI GPT series, Google Gemini, etc.)
 * **语音合成 (TTS)**: 可插拔设计 (e.g., Edge-TTS, ElevenLabs, etc.)
+* **测试框架**: [pytest](https://pytest.org/) + pytest-asyncio (支持异步测试)
 
 ## 开始使用
 
@@ -86,6 +90,72 @@
 
 4.  **启动其他模块**
     打开新的终端窗口，重复步骤3来启动其他模块（如 `vtuber-io`, `input-cli` 等）。每个模块都在自己的终端中独立运行。
+
+## 开发与测试
+
+本项目采用双环境架构，既保证了微服务的独立性，又提供了便捷的开发测试体验。
+
+### 开发环境
+
+项目包含两套Python环境：
+
+**生产环境** - 各服务独立部署：
+```
+services/
+├── chat-ai-python/venv/      # AI服务独立环境
+├── memory-python/venv/       # 记忆服务独立环境
+└── ...                       # 其他服务独立环境
+```
+
+**开发环境** - 统一开发测试：
+```bash
+# 1. 创建开发环境（项目根目录）
+python3 -m venv dev-venv
+source dev-venv/bin/activate
+
+# 2. 安装开发依赖（包含所有服务依赖 + 测试工具）
+pip install -r requirements-dev.txt
+```
+
+### 运行测试
+
+我们使用 pytest 进行单元测试和集成测试：
+
+```bash
+# 激活开发环境
+source dev-venv/bin/activate
+
+# 运行所有测试
+pytest tests/ -v
+
+# 运行特定模块测试
+pytest tests/unit/test_memory_manager.py -v
+
+# 运行测试并查看覆盖率
+pytest tests/ --cov=services --cov-report=html
+
+# 运行集成测试（需要Redis运行）
+pytest tests/integration/ -v
+```
+
+**测试结构**：
+```
+tests/
+├── unit/                     # 单元测试（使用模拟对象）
+│   └── test_memory_manager.py
+├── integration/              # 集成测试（需要真实Redis）
+│   └── test_redis_flow.py
+├── fixtures/                 # 测试数据
+│   └── sample_messages.json
+└── conftest.py              # pytest配置
+```
+
+测试覆盖了：
+- ✅ 记忆管理模块的核心逻辑
+- ✅ Redis数据存储和检索
+- ✅ 消息序列化/反序列化
+- ✅ 错误处理和边界情况
+- 🚧 更多服务模块测试开发中...
 
 ## 开发路线图
 

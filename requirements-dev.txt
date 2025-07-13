@@ -1,0 +1,45 @@
+# 开发和测试环境依赖文件
+# 包含所有服务的依赖 + 开发测试工具
+
+# ===== 核心依赖 (所有服务共用) =====
+redis==5.0.1
+
+# ===== Web框架和API =====
+fastapi==0.104.1
+uvicorn==0.24.0
+websockets==12.0
+python-multipart==0.0.6
+
+# ===== AI和HTTP客户端 =====
+openai==1.7.2
+httpx==0.25.0
+
+# ===== 文件和异步处理 =====
+aiofiles==23.2.1
+asyncio-mqtt==0.11.1
+
+# ===== 管理界面 (Flask) =====
+Flask==2.3.3
+Werkzeug==2.3.7
+psutil==5.9.6
+
+# ===== 测试框架 =====
+pytest==8.0.0
+pytest-asyncio==0.23.0
+pytest-mock==3.12.0
+
+# ===== 开发工具 =====
+# 代码格式化
+black==23.12.1
+isort==5.13.2
+
+# 代码检查
+flake8==7.0.0
+mypy==1.8.0
+
+# 调试和分析
+ipython==8.18.1
+memory-profiler==0.61.0
+
+# ===== 日志和监控 =====
+structlog==23.2.0

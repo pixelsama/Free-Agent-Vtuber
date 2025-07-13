@@ -1,0 +1,62 @@
+{
+  "test_messages": [
+    {
+      "message_id": "msg_001",
+      "user_id": "user_alice",
+      "type": "text",
+      "content": "你好，我想了解一下天气情况",
+      "source": "user",
+      "timestamp": "2025-07-13T10:00:00Z",
+      "require_ai_response": true,
+      "metadata": {
+        "task_id": "task_001",
+        "priority": "normal"
+      }
+    },
+    {
+      "message_id": "msg_002", 
+      "user_id": "user_alice",
+      "type": "text",
+      "content": "今天天气不错，温度适宜，适合外出游玩。",
+      "source": "ai",
+      "timestamp": "2025-07-13T10:00:05Z",
+      "require_ai_response": false,
+      "metadata": {
+        "model": "gpt-3.5-turbo",
+        "response_time": 1.2
+      }
+    },
+    {
+      "message_id": "msg_003",
+      "user_id": "user_bob", 
+      "type": "text",
+      "content": "请帮我制定一个学习计划",
+      "source": "user",
+      "timestamp": "2025-07-13T10:05:00Z",
+      "require_ai_response": true,
+      "metadata": {
+        "task_id": "task_002",
+        "priority": "high"
+      }
+    }
+  ],
+  "test_config": {
+    "memory": {
+      "max_memory_size": 50,
+      "memory_ttl_hours": 12,
+      "context_window": 10,
+      "enable_global_context": true,
+      "global_memory_limit": 500
+    },
+    "redis": {
+      "host": "localhost",
+      "port": 6379,
+      "decode_responses": true
+    }
+  },
+  "redis_keys": {
+    "user_memory_prefix": "memory:user_sessions",
+    "global_memory": "memory:global_context",
+    "memory_updates_channel": "memory_updates"
+  }
+}
