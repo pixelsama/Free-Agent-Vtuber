@@ -440,11 +440,10 @@ class MemorySummarizer:
         self.prompts = self.summary_config.get("prompts", {})
         self.retry_states = {}  # 记录重试状态 {memory_key: {attempts: int, last_attempt: timestamp}}
         
-        # 从环境变量获取API密钥
-        api_key_env = self.ai_config.get("api_key_env", "OPENAI_API_KEY")
-        self.api_key = os.getenv(api_key_env)
+        # 优先从环境变量读取API key，如果没有再从配置文件读取
+        self.api_key = os.getenv("OPENAI_API_KEY") or self.ai_config.get("api_key")
         if not self.api_key:
-            logger.warning(f"API key not found in environment variable: {api_key_env}")
+            logger.warning("AI API key not configured (set OPENAI_API_KEY environment variable)")
     
     async def summarize_memories(self, memories: List[Dict], memory_key: str) -> Optional[Dict]:
         """总结记忆内容

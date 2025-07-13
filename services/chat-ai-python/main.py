@@ -381,11 +381,12 @@ async def init_ai():
     global ai_client
     try:
         ai_config = config.get("ai", {})
-        api_key = ai_config.get("api_key")
+        # 优先从环境变量读取API key，如果没有再从配置文件读取
+        api_key = os.getenv("OPENAI_API_KEY") or ai_config.get("api_key")
         api_base = ai_config.get("api_base")
         
         if not api_key or api_key == "your-api-key-here":
-            logger.warning("AI API key not configured, will use fallback rules only")
+            logger.warning("AI API key not configured (set OPENAI_API_KEY environment variable), will use fallback rules only")
             return
         
         ai_client = AsyncOpenAI(
