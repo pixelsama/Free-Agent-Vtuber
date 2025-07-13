@@ -1,7 +1,31 @@
-2025-07-12 15:16:21[AI聊天模块]2025-07-12 15:16:21,345 - __main__ - INFO - Received memory update event: {'event_type': 'memory_update', 'user_id': 'anonymous', 'message_id': 'anonymous_1752304581343', 'source': 'user', 'require_ai_response': True, 'timestamp': '2025-07-12T15:16:21.343935', 'task_id': '4b5fbe69-8aaa-4601-823b-507cdcba6ddf'}
-2025-07-12 15:16:21[AI聊天模块]2025-07-12 15:16:21,345 - __main__ - INFO - Processing memory update for user anonymous, message anonymous_1752304581343
-2025-07-12 15:16:21[AI聊天模块]2025-07-12 15:16:21,347 - __main__ - ERROR - AI API error: 'AIProcessor' object has no attribute '_get_global_context'
-2025-07-12 15:16:21[AI聊天模块]2025-07-12 15:16:21,347 - __main__ - ERROR - Error processing text: 'AIProcessor' object has no attribute '_get_global_context'
-2025-07-12 15:16:21[AI聊天模块]2025-07-12 15:16:21,347 - __main__ - INFO - Falling back to rule-based responses
-2025-07-12 15:16:21[AI聊天模块]2025-07-12 15:16:21,348 - __main__ - INFO - Published AI response for user anonymous
-2025-07-12 15:16:21[AI聊天模块]2025-07-12 15:16:21,459 - __main__ - INFO - Sent response for task 4b5fbe69-8aaa-4601-823b-507cdcba6ddf to channel task_response:4b5fbe69-8aaa-4601-823b-507cdcba6ddf
+2025-07-12 15:24:32[网关模块]INFO: ('127.0.0.1', 54126) - "WebSocket /ws/input" [accepted]
+2025-07-12 15:24:32[网关模块]2025-07-12 15:24:32,618 - main - INFO - Client connected to input (ID: input_1)
+2025-07-12 15:24:32[网关模块]INFO: connection open
+2025-07-12 15:24:32[网关模块]2025-07-12 15:24:32,630 - main - INFO - Connected to backend: ws://localhost:8001/ws/input
+2025-07-12 15:24:32[输入处理模块]INFO: ('127.0.0.1', 38302) - "WebSocket /ws/input" [accepted]
+2025-07-12 15:24:32[输入处理模块]INFO: connection open
+2025-07-12 15:24:32[输入处理模块]2025-07-12 15:24:32,628 - main - INFO - Input connection established, task_id: 19f97d9d-2e06-4b42-bce0-75aa616ffe95
+2025-07-12 15:24:33[网关模块]INFO: ('127.0.0.1', 54142) - "WebSocket /ws/output/19f97d9d-2e06-4b42-bce0-75aa616ffe95" [accepted]
+2025-07-12 15:24:33[网关模块]2025-07-12 15:24:33,232 - main - INFO - Client connected to output (ID: output_2)
+2025-07-12 15:24:33[网关模块]INFO: connection open
+2025-07-12 15:24:33[网关模块]2025-07-12 15:24:33,236 - main - INFO - Connected to backend: ws://localhost:8002/ws/output/19f97d9d-2e06-4b42-bce0-75aa616ffe95
+2025-07-12 15:24:33[输出处理模块]INFO: ('127.0.0.1', 51984) - "WebSocket /ws/output/19f97d9d-2e06-4b42-bce0-75aa616ffe95" [accepted]
+2025-07-12 15:24:33[输出处理模块]2025-07-12 15:24:33,236 - main - INFO - Output connection established for task_id: 19f97d9d-2e06-4b42-bce0-75aa616ffe95
+2025-07-12 15:24:33[输出处理模块]INFO: connection open
+2025-07-12 15:24:33[输出处理模块]2025-07-12 15:24:33,236 - main - INFO - Subscribed to Redis channel: task_response:19f97d9d-2e06-4b42-bce0-75aa616ffe95
+2025-07-12 15:24:33[输出处理模块]2025-07-12 15:24:33,238 - main - DEBUG - Subscribed to channel task_response:19f97d9d-2e06-4b42-bce0-75aa616ffe95
+2025-07-12 15:24:36[网关模块]2025-07-12 15:24:36,885 - main - INFO - WebSocket disconnect: input_1 -> backend
+2025-07-12 15:24:36[网关模块]INFO: connection closed
+2025-07-12 15:24:36[网关模块]2025-07-12 15:24:36,889 - main - INFO - Connection input_1 cleaned up
+2025-07-12 15:24:36[输入处理模块]2025-07-12 15:24:36,883 - main - INFO - Saved text input for task 19f97d9d-2e06-4b42-bce0-75aa616ffe95: 你好...
+2025-07-12 15:24:36[输入处理模块]2025-07-12 15:24:36,884 - main - INFO - Sent task 19f97d9d-2e06-4b42-bce0-75aa616ffe95 to Redis queue: text
+2025-07-12 15:24:36[输入处理模块]INFO: connection closed
+2025-07-12 15:24:36[记忆模块]2025-07-12 15:24:36,884 - __main__ - INFO - Received input task: {'task_id': '19f97d9d-2e06-4b42-bce0-75aa616ffe95', 'type': 'text', 'input_file': '/tmp/aivtuber_tasks/19f97d9d-2e06-4b42-bce0-75aa616ffe95/input.txt', 'timestamp': 20544.716953758}
+2025-07-12 15:24:36[记忆模块]2025-07-12 15:24:36,884 - __main__ - INFO - Processing memory task 19f97d9d-2e06-4b42-bce0-75aa616ffe95, type: text
+2025-07-12 15:24:36[记忆模块]2025-07-12 15:24:36,884 - __main__ - INFO - Storing user text: 你好...
+2025-07-12 15:24:36[记忆模块]2025-07-12 15:24:36,890 - memory_manager - INFO - Published memory update event for message anonymous_1752305076884
+2025-07-12 15:24:36[记忆模块]2025-07-12 15:24:36,890 - memory_manager - INFO - Stored message anonymous_1752305076884 from user
+2025-07-12 15:24:36[记忆模块]2025-07-12 15:24:36,890 - __main__ - INFO - Stored user message anonymous_1752305076884
+2025-07-12 15:24:36[AI聊天模块]2025-07-12 15:24:36,889 - __main__ - INFO - Received memory update event: {'event_type': 'memory_update', 'user_id': 'anonymous', 'message_id': 'anonymous_1752305076884', 'source': 'user', 'require_ai_response': True, 'timestamp': '2025-07-12T15:24:36.884549', 'task_id': '19f97d9d-2e06-4b42-bce0-75aa616ffe95'}
+2025-07-12 15:24:36[AI聊天模块]2025-07-12 15:24:36,889 - __main__ - INFO - Processing memory update for user anonymous, message anonymous_1752305076884
+2025-07-12 15:24:36[AI聊天模块]2025-07-12 15:24:36,895 - __main__ - WARNING - Message ID mismatch: expected anonymous_1752305076884, got anonymous_1752289090935

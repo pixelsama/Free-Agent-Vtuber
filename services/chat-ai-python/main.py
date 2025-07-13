@@ -188,23 +188,20 @@ class TaskProcessor:
         try:
             user_id = event_data.get("user_id", "anonymous")
             message_id = event_data.get("message_id")
+            source = event_data.get("source")
             
             logger.info(f"Processing memory update for user {user_id}, message {message_id}")
             
-            # 从记忆模块获取用户上下文
-            context = await self._get_user_context(user_id)
-            
-            if not context:
-                logger.warning(f"No context found for user {user_id}")
+            # 验证事件数据
+            if source != "user":
+                logger.warning(f"Ignoring non-user message: {source}")
                 return
             
-            # 获取最新的用户消息
-            latest_message = context[-1] if context else None
-            if not latest_message or latest_message.get("source") != "user":
-                logger.warning("No valid user message found in context")
+            # 从全局记忆获取消息内容（带重试机制）
+            input_text = await self._get_message_content_with_retry(message_id)
+            if not input_text:
+                logger.error(f"Could not retrieve content for message {message_id}")
                 return
-            
-            input_text = latest_message.get("content", "")
             
             # AI处理（使用全局记忆）
             response_text = await self.ai_processor.process_text(input_text)
@@ -224,30 +221,40 @@ class TaskProcessor:
         except Exception as e:
             logger.error(f"Error processing memory update: {e}")
     
-    async def _get_user_context(self, user_id: str) -> list:
-        """从记忆模块获取用户上下文"""
-        try:
-            # 这里应该调用记忆模块的API获取上下文
-            # 暂时返回空列表，实际实现需要HTTP请求或Redis查询
-            context_key = f"memory:user_sessions:{user_id}"
-            
-            if redis_client:
-                # 获取最近的消息
-                messages_json = await redis_client.lrange(context_key, -20, -1)
-                context = []
-                for msg_json in messages_json:
+    async def _get_message_content_with_retry(self, message_id: str, max_retries: int = 3) -> str:
+        """带重试机制的消息内容获取"""
+        for attempt in range(max_retries):
+            try:
+                if not redis_client:
+                    logger.error("Redis client not available")
+                    return ""
+                
+                # 从全局记忆中查找指定消息ID
+                context_key = "memory:global_context"
+                messages_json = await redis_client.lrange(context_key, -50, -1)  # 获取最近50条消息
+                
+                for msg_json in reversed(messages_json):  # 从最新的开始查找
                     try:
                         message = json.loads(msg_json)
-                        context.append(message)
+                        if message.get("message_id") == message_id:
+                            content = message.get("content", "")
+                            if content.strip():
+                                logger.info(f"Found message {message_id} on attempt {attempt + 1}")
+                                return content
                     except json.JSONDecodeError:
                         continue
-                return context
-            
-            return []
-            
-        except Exception as e:
-            logger.error(f"Error getting user context: {e}")
-            return []
+                
+                # 如果没找到，等待一小段时间后重试
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(0.1 * (attempt + 1))  # 递增等待时间
+                    
+            except Exception as e:
+                logger.error(f"Error retrieving message {message_id} on attempt {attempt + 1}: {e}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(0.1 * (attempt + 1))
+        
+        logger.warning(f"Failed to retrieve message {message_id} after {max_retries} attempts")
+        return ""
     
     async def _publish_ai_response(self, user_id: str, response_text: str, original_message_id: str):
         """发布AI响应到记忆模块"""
