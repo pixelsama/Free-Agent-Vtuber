@@ -4,12 +4,13 @@ import base64
 import time
 import uuid
 from typing import Dict, Any
+from pathlib import Path 
 
-from .config_manager import ConfigManager
-from .utils import RedisClient, setup_logger
-from .providers import ProviderFactory
-from .providers.openai_tts import OpenAITTS # Import to register
-from .providers.edge_tts import EdgeTTS # Import to register
+from config_manager import ConfigManager
+from utils import RedisClient, setup_logger
+from providers import ProviderFactory
+from providers.openai_tts import OpenAITTS # Import to register
+from providers.edge_tts import EdgeTTS # Import to register
 
 class TTSService:
     """
@@ -79,23 +80,45 @@ class TTSService:
         try:
             audio_data, final_provider = await self._synthesize_with_fallback(text, provider_name, message.get("voice_params", {}))
             
-            processing_time = time.time() - start_time
-            
+            # 1. 创建临时文件路径
+            task_id = message.get("task_id", str(uuid.uuid4()))
+            temp_dir = Path(self.config.get("storage", {}).get("temp_dir", "/tmp/aivtuber_tasks"))
+            task_dir = temp_dir / task_id
+            task_dir.mkdir(exist_ok=True, parents=True)
+            # 注意：output-handler默认寻找.wav文件，这里需要保证格式一致或进行转换
+            audio_file_path = task_dir / "output.mp3" 
+
+            # 2. 将音频数据写入文件
+            with open(audio_file_path, "wb") as f:
+                f.write(audio_data)
+            self.logger.info(f"Saved synthesized audio to {audio_file_path}")
+
+            # 3. 构建包含文件路径的响应
             response = {
                 "message_id": message_id,
-                "timestamp": time.time(),
+                "task_id": task_id,
                 "status": "success",
-                "audio_data": base64.b64encode(audio_data).decode('utf-8'),
+                "text": message.get("text"), # 将文本也一并返回
+                "audio_file": str(audio_file_path), # 返回的是文件路径！
                 "metadata": {
                     "provider": final_provider,
-                    "voice_params": message.get("voice_params", {}),
-                    "text_length": len(text),
-                    "audio_duration": len(audio_data) / 16000 / 2, # Approximate
-                    "processing_time": processing_time
+                    "processing_time": time.time() - start_time
                 }
             }
-            response_channel = message.get("response_channel", self.config["tts"]["response_channel"])
+            
+            # 优先使用请求中指定的响应频道，否则根据task_id构建
+            response_channel = message.get("response_channel")
+            if not response_channel:
+                prefix = self.config["tts"].get("response_channel_prefix", "task_response:")
+                task_id_for_channel = message.get("task_id")
+                if task_id_for_channel:
+                    response_channel = f"{prefix}{task_id_for_channel}"
+                else:
+                    self.logger.error(f"Cannot determine response channel for message_id: {message_id}. No 'response_channel' or 'task_id' found in request.")
+                    return
+
             await self.redis_client.publish(response_channel, json.dumps(response))
+            self.logger.info(f"Published TTS response to channel: {response_channel}")
 
         except Exception as e:
             await self.handle_error(e, message, provider_name)
