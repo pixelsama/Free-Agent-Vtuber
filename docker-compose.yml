@@ -1,0 +1,144 @@
+version: '3.8'
+
+services:
+  # Redis 消息总线
+  redis:
+    image: redis:7-alpine
+    container_name: aivtuber-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # 前端服务
+  frontend:
+    build:
+      context: ./front_end
+      dockerfile: Dockerfile
+    container_name: aivtuber-frontend
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+    depends_on:
+      - redis
+
+  # 管理器服务
+  manager:
+    build:
+      context: ./manager
+      dockerfile: Dockerfile
+    container_name: aivtuber-manager
+    ports:
+      - "5000:5000"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - ./manager/Log:/app/Log
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # AI聊天服务
+  chat-ai:
+    build:
+      context: ./services/chat-ai-python
+      dockerfile: Dockerfile
+    container_name: aivtuber-chat-ai
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # 网关服务
+  gateway:
+    build:
+      context: ./services/gateway-python
+      dockerfile: Dockerfile
+    container_name: aivtuber-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # 输入处理服务
+  input-handler:
+    build:
+      context: ./services/input-handler-python
+      dockerfile: Dockerfile
+    container_name: aivtuber-input-handler
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # 记忆服务
+  memory:
+    build:
+      context: ./services/memory-python
+      dockerfile: Dockerfile
+    container_name: aivtuber-memory
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - memory_data:/app/data
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # 输出处理服务
+  output-handler:
+    build:
+      context: ./services/output-handler-python
+      dockerfile: Dockerfile
+    container_name: aivtuber-output-handler
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # TTS服务
+  tts:
+    build:
+      context: ./services/tts-python
+      dockerfile: Dockerfile
+    container_name: aivtuber-tts
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  redis_data:
+  memory_data:
+
+networks:
+  default:
+    name: aivtuber-network

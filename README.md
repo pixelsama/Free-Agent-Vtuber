@@ -36,13 +36,85 @@
 
 ## 技术栈
 
+### 后端架构
 * **核心架构**: 微服务 (Microservices), 事件驱动 (Event-Driven)
 * **消息总线**: [Redis](https://redis.io/)
 * **主要开发语言**: [Python 3.10+](https://www.python.org/) (用于初期模块开发)
-* **虚拟形象驱动**: [VTube Studio](https://store.steampowered.com/app/1325860/VTube_Studio/) (通过其API进行控制)
 * **AI 大语言模型**: 可插拔设计，支持各类 LLM API (e.g., OpenAI GPT series, Google Gemini, etc.)
 * **语音合成 (TTS)**: 可插拔设计 (e.g., Edge-TTS, ElevenLabs, etc.)
+
+### 前端界面
+* **框架**: [Vue.js 3](https://vuejs.org/) - 现代化响应式前端框架
+* **UI组件库**: [Vuetify 3](https://vuetifyjs.com/) - Material Design组件库
+* **构建工具**: [Vite](https://vitejs.dev/) - 快速的前端构建工具
+* **虚拟形象**: [Live2D](https://www.live2d.com/) - 2D虚拟角色动画技术
+* **图标**: [Material Design Icons](https://materialdesignicons.com/)
+
+### 管理与监控
+* **服务管理**: [Flask](https://flask.palletsprojects.com/) - 轻量级Web管理界面
+* **进程管理**: Python subprocess + psutil - 服务生命周期管理
+* **实时监控**: WebSocket + 日志流 - 实时服务状态监控
+
+### 虚拟形象驱动
+* **VTube Studio**: [VTube Studio](https://store.steampowered.com/app/1325860/VTube_Studio/) (通过其API进行控制)
+
+### 测试框架
 * **测试框架**: [pytest](https://pytest.org/) + pytest-asyncio (支持异步测试)
+
+## 快速开始 🚀
+
+想要快速体验项目？我们提供两种部署方式：
+
+### 🐳 Docker部署（推荐）
+
+最简单的部署方式，一键启动所有服务：
+
+```bash
+# 1. 克隆项目
+git clone https://github.com/your_username/AIVtuber.git
+cd AIVtuber
+
+# 2. 配置环境变量
+cp .env.example .env
+# 编辑 .env 文件，设置您的 OPENAI_API_KEY
+
+# 3. 一键部署
+# Linux/macOS:
+./deploy.sh
+
+# Windows:
+deploy.bat
+```
+
+### 📦 本地部署
+
+如果您希望本地开发或不使用Docker：
+
+```bash
+# 1. 克隆项目
+git clone https://github.com/your_username/AIVtuber.git
+cd AIVtuber
+
+# 2. 启动Redis（如果未安装，请参考先决条件部分）
+redis-server
+
+# 3. 设置API密钥
+export OPENAI_API_KEY=your_api_key_here
+
+# 4. 启动管理器
+cd manager
+pip install -r requirements.txt
+python app.py
+
+# 5. 启动前端（新终端）
+cd ../front_end
+npm install
+npm run dev
+```
+
+**访问地址：**
+- 🎛️ **管理界面**: http://localhost:5000 - 管理所有微服务
+- 🎭 **虚拟主播界面**: http://localhost:3000 - AI交互界面
 
 ## 开始使用
 
@@ -50,10 +122,23 @@
 
 ### 先决条件
 
-在开始之前，请确保您的开发环境中已安装以下软件：
+根据您选择的部署方式，需要安装不同的软件：
 
-* Python 3.10 或更高版本
-* Redis Server (可以通过 `brew install redis`, `sudo apt-get install redis-server` 或从官网下载安装)
+#### 🐳 Docker部署（推荐）
+* **Docker** - 容器运行环境
+  - Windows: [Docker Desktop](https://www.docker.com/products/docker-desktop)
+  - macOS: [Docker Desktop](https://www.docker.com/products/docker-desktop)
+  - Linux: [Docker Engine](https://docs.docker.com/engine/install/)
+* **Docker Compose** - 多容器编排工具（通常随Docker Desktop一起安装）
+
+#### 📦 本地部署
+* **Python 3.10 或更高版本** - 用于后端微服务开发
+* **Node.js 16+ 和 npm** - 用于前端开发和构建
+* **Redis Server** - 消息总线服务
+  - macOS: `brew install redis`
+  - Ubuntu/Debian: `sudo apt-get install redis-server`
+  - Windows: 从 [Redis官网](https://redis.io/download) 下载安装
+  - Docker: `docker run -d -p 6379:6379 redis:alpine`
 
 ### 环境配置
 
@@ -79,6 +164,78 @@ export OPENAI_API_KEY=your_api_key_here
 
 ### 安装与运行
 
+本项目支持两种部署方式：Docker容器化部署和本地部署。
+
+#### 🐳 方式一：Docker部署（推荐）
+
+Docker部署是最简单、最可靠的部署方式，所有服务都运行在独立的容器中。
+
+> 📖 **详细指南**: 查看 [Docker部署指南](docs/DOCKER.md) 了解完整的Docker使用说明
+
+1.  **克隆仓库**
+    ```bash
+    git clone https://github.com/your_username/AIVtuber.git
+    cd AIVtuber
+    ```
+
+2.  **配置环境变量**
+    ```bash
+    # 复制环境变量模板
+    cp .env.example .env
+    
+    # 编辑 .env 文件，设置您的API密钥
+    # Windows: notepad .env
+    # macOS/Linux: nano .env 或 vim .env
+    ```
+    
+    在 `.env` 文件中设置：
+    ```env
+    OPENAI_API_KEY=your_actual_api_key_here
+    ```
+
+3.  **一键部署**
+    ```bash
+    # Linux/macOS
+    chmod +x deploy.sh
+    ./deploy.sh
+    
+    # Windows
+    deploy.bat
+    ```
+
+4.  **验证部署**
+    ```bash
+    # 查看所有服务状态
+    docker-compose ps
+    
+    # 查看服务日志
+    docker-compose logs -f
+    ```
+
+5.  **访问应用**
+    - 🎛️ **管理界面**: http://localhost:5000
+    - 🎭 **虚拟主播界面**: http://localhost:3000
+
+**Docker常用命令：**
+```bash
+# 停止所有服务
+docker-compose down
+
+# 重启特定服务
+docker-compose restart [服务名]
+
+# 查看特定服务日志
+docker-compose logs -f [服务名]
+
+# 重新构建并启动
+docker-compose up --build -d
+
+# 清理未使用的镜像和容器
+docker system prune
+```
+
+#### 📦 方式二：使用管理器（本地部署）
+
 1.  **克隆仓库**
     ```bash
     git clone https://github.com/your_username/AIVtuber.git
@@ -98,7 +255,43 @@ export OPENAI_API_KEY=your_api_key_here
     export OPENAI_API_KEY=your_actual_api_key_here
     ```
 
-4.  **设置并运行模块**
+4.  **启动管理器**
+    ```bash
+    # 进入管理器目录
+    cd manager
+
+    # 创建并激活虚拟环境
+    python -m venv venv
+    source venv/bin/activate  # Windows: venv\Scripts\activate
+
+    # 安装依赖
+    pip install -r requirements.txt
+
+    # 启动管理器
+    python app.py
+    ```
+
+5.  **访问管理界面**
+    打开浏览器访问 `http://localhost:5000`，通过Web界面管理所有微服务的启动、停止和监控。
+
+6.  **启动前端界面**
+    ```bash
+    # 新开终端，进入前端目录
+    cd front_end
+
+    # 安装Node.js依赖
+    npm install
+
+    # 启动开发服务器
+    npm run dev
+    ```
+    前端将在 `http://localhost:3000` 启动，提供AI虚拟主播的交互界面。
+
+#### 🔧 方式三：手动启动各服务
+
+如果您希望手动管理各个服务：
+
+1.  **设置并运行后端模块**
     本项目的所有模块都存放在 `services/` 目录下。您需要为每个模块单独设置环境并运行。
 
     以 `chat-ai-python` 模块为例：
@@ -117,8 +310,32 @@ export OPENAI_API_KEY=your_api_key_here
     python main.py
     ```
 
-5.  **启动其他模块**
-    打开新的终端窗口，重复步骤4来启动其他模块（如 `memory-python`, `input-handler-python` 等）。每个模块都在自己的终端中独立运行。
+2.  **启动其他后端模块**
+    打开新的终端窗口，重复步骤1来启动其他模块：
+    - `memory-python` - 记忆管理模块
+    - `input-handler-python` - 输入处理模块
+    - `output-handler-python` - 输出处理模块
+    - `tts-python` - 语音合成模块
+    - `gateway-python` - 网关模块
+
+3.  **启动前端**
+    ```bash
+    # 进入前端目录
+    cd front_end
+
+    # 安装依赖（首次运行）
+    npm install
+
+    # 启动开发服务器
+    npm run dev
+    ```
+
+#### 服务端口说明
+
+- **管理器**: `http://localhost:5000` - 服务管理界面
+- **前端**: `http://localhost:3000` - AI虚拟主播交互界面
+- **Redis**: `localhost:6379` - 消息总线
+- **各微服务**: 通过Redis进行通信，无需直接访问
 
 ## 开发与测试
 
@@ -126,7 +343,9 @@ export OPENAI_API_KEY=your_api_key_here
 
 ### 开发环境
 
-项目包含两套Python环境：
+项目包含后端Python环境和前端Node.js环境：
+
+#### 后端开发环境
 
 **生产环境** - 各服务独立部署：
 ```
@@ -144,6 +363,40 @@ source dev-venv/bin/activate
 
 # 2. 安装开发依赖（包含所有服务依赖 + 测试工具）
 pip install -r requirements-dev.txt
+```
+
+#### 前端开发环境
+
+```bash
+# 进入前端目录
+cd front_end
+
+# 安装依赖
+npm install
+
+# 开发模式（热重载）
+npm run dev
+
+# 构建生产版本
+npm run build
+
+# 预览生产构建
+npm run preview
+```
+
+**前端项目结构**：
+```
+front_end/
+├── src/
+│   ├── components/          # Vue组件
+│   ├── assets/             # 静态资源
+│   ├── live2d/             # Live2D相关文件
+│   ├── composables/        # Vue组合式函数
+│   ├── App.vue             # 主应用组件
+│   └── main.js             # 应用入口
+├── package.json            # 项目配置和依赖
+├── vite.config.js          # Vite构建配置
+└── index.html              # HTML模板
 ```
 
 ### 运行测试
@@ -192,7 +445,15 @@ tests/
 
 - [x] **Phase 0: 概念与架构设计** - 定义项目的核心原则和结构。
 - [🚧] **Phase 1: 架构骨架验证 (The Backbone)** - 搭建核心通信链路，让两个本地模块通过 Redis 成功通信。
+  - [x] 微服务架构搭建
+  - [x] Redis消息总线集成
+  - [x] 服务管理器开发
+  - [x] 前端交互界面开发
+  - [🚧] 服务间通信优化
 - [ ] **Phase 2: 赋予"形体" (The Body)** - 让虚拟形象能够响应来自 Redis 的指令，做出简单动作。
+  - [🚧] Live2D虚拟形象集成
+  - [ ] VTube Studio API集成
+  - [ ] 动作指令系统
 - [ ] **Phase 3: 注入"智能" (The Brain)** - 集成大语言模型，让 Agent 能够"思考"并生成对话内容。
 - [ ] **Phase 4: 赋予"声音" (The Voice)** - 集成 TTS 引擎，让 Agent 能够开口说话，完成 MVP。
 

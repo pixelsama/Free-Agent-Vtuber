@@ -1,0 +1,57 @@
+version: '3.8'
+
+# 开发环境配置 - 支持热重载和调试
+services:
+  # Redis 消息总线
+  redis:
+    image: redis:7-alpine
+    container_name: aivtuber-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    restart: unless-stopped
+
+  # 前端开发服务（热重载）
+  frontend-dev:
+    build:
+      context: ./front_end
+      dockerfile: Dockerfile.dev
+    container_name: aivtuber-frontend-dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./front_end:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+    restart: unless-stopped
+    depends_on:
+      - redis
+
+  # 管理器开发服务
+  manager-dev:
+    build:
+      context: ./manager
+      dockerfile: Dockerfile.dev
+    container_name: aivtuber-manager-dev
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./manager:/app
+      - ./manager/Log:/app/Log
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    restart: unless-stopped
+    depends_on:
+      - redis
+
+volumes:
+  redis_dev_data:
+
+networks:
+  default:
+    name: aivtuber-dev-network
