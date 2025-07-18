@@ -1,4 +1,4 @@
-# AIVtuber 🤖🎙️
+# Free-Agent-Vtuber 🤖🎙️
 
 ![Project Status](https://img.shields.io/badge/status-in%20development-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -218,4 +218,4 @@ tests/
 本项目采用 MIT 许可证。详情请见 `LICENSE` 文件。
 
 ---
-**AIVtuber** - *An AI Soul in a Digital Shell.*
+**Free-Agent-Vtuber** - *An AI Soul in a Digital Shell.*
