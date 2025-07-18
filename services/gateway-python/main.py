@@ -5,6 +5,7 @@ from typing import Dict
 
 import websockets
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 import uvicorn
 
@@ -34,6 +35,21 @@ async def lifespan(app: FastAPI):
     logger.info("API Gateway shutdown")
 
 app = FastAPI(lifespan=lifespan)
+
+# 配置CORS
+origins = [
+    "http://localhost",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class WebSocketProxy:
     def __init__(self):

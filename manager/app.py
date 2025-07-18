@@ -42,6 +42,11 @@ SERVICE_CONFIG = {
         'path': '../services/output-handler-python',
         'main': 'main.py',
         'name': '输出处理模块'
+    },
+    'tts-python': {
+        'path': '../services/tts-python',
+        'main': 'main.py',
+        'name': '语音合成模块'
     }
 }
 

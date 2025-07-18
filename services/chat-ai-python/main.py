@@ -198,7 +198,8 @@ class TaskProcessor:
                 return
             
             # 从全局记忆获取消息内容（带重试机制）
-            input_text = await self._get_message_content_with_retry(message_id)
+            # input_text = await self._get_message_content_with_retry(message_id)
+            input_text = event_data.get("content")
             if not input_text:
                 logger.error(f"Could not retrieve content for message {message_id}")
                 return
@@ -212,7 +213,8 @@ class TaskProcessor:
             # 同时发送到输出模块，使用接收到的原始 task_id
             original_task_id = event_data.get("task_id")
             if original_task_id:
-                await self._send_response(original_task_id, response_text, None)
+                asyncio.create_task(self._request_tts_synthesis(response_text, message_id, original_task_id))
+                # await self._send_response(original_task_id, response_text, None) # 已禁用：由TTS服务统一发送最终响应
             else:
                 # 如果没有原始task_id，使用旧的方法作为fallback
                 task_id = f"{user_id}_{int(asyncio.get_event_loop().time() * 1000)}"
@@ -221,40 +223,40 @@ class TaskProcessor:
         except Exception as e:
             logger.error(f"Error processing memory update: {e}")
     
-    async def _get_message_content_with_retry(self, message_id: str, max_retries: int = 3) -> str:
-        """带重试机制的消息内容获取"""
-        for attempt in range(max_retries):
-            try:
-                if not redis_client:
-                    logger.error("Redis client not available")
-                    return ""
+    # async def _get_message_content_with_retry(self, message_id: str, max_retries: int = 3) -> str:
+    #     """带重试机制的消息内容获取"""
+    #     for attempt in range(max_retries):
+    #         try:
+    #             if not redis_client:
+    #                 logger.error("Redis client not available")
+    #                 return ""
                 
-                # 从全局记忆中查找指定消息ID
-                context_key = "memory:global_context"
-                messages_json = await redis_client.lrange(context_key, -50, -1)  # 获取最近50条消息
+    #             # 从全局记忆中查找指定消息ID
+    #             context_key = "memory:global_context"
+    #             messages_json = await redis_client.lrange(context_key, -50, -1)  # 获取最近50条消息
                 
-                for msg_json in reversed(messages_json):  # 从最新的开始查找
-                    try:
-                        message = json.loads(msg_json)
-                        if message.get("message_id") == message_id:
-                            content = message.get("content", "")
-                            if content.strip():
-                                logger.info(f"Found message {message_id} on attempt {attempt + 1}")
-                                return content
-                    except json.JSONDecodeError:
-                        continue
+    #             for msg_json in reversed(messages_json):  # 从最新的开始查找
+    #                 try:
+    #                     message = json.loads(msg_json)
+    #                     if message.get("message_id") == message_id:
+    #                         content = message.get("content", "")
+    #                         if content.strip():
+    #                             logger.info(f"Found message {message_id} on attempt {attempt + 1}")
+    #                             return content
+    #                 except json.JSONDecodeError:
+    #                     continue
                 
-                # 如果没找到，等待一小段时间后重试
-                if attempt < max_retries - 1:
-                    await asyncio.sleep(0.1 * (attempt + 1))  # 递增等待时间
+    #             # 如果没找到，等待一小段时间后重试
+    #             if attempt < max_retries - 1:
+    #                 await asyncio.sleep(0.1 * (attempt + 1))  # 递增等待时间
                     
-            except Exception as e:
-                logger.error(f"Error retrieving message {message_id} on attempt {attempt + 1}: {e}")
-                if attempt < max_retries - 1:
-                    await asyncio.sleep(0.1 * (attempt + 1))
+    #         except Exception as e:
+    #             logger.error(f"Error retrieving message {message_id} on attempt {attempt + 1}: {e}")
+    #             if attempt < max_retries - 1:
+    #                 await asyncio.sleep(0.1 * (attempt + 1))
         
-        logger.warning(f"Failed to retrieve message {message_id} after {max_retries} attempts")
-        return ""
+    #     logger.warning(f"Failed to retrieve message {message_id} after {max_retries} attempts")
+    #     return ""
     
     async def _publish_ai_response(self, user_id: str, response_text: str, original_message_id: str):
         """发布AI响应到记忆模块"""
@@ -337,6 +339,31 @@ class TaskProcessor:
             
         except Exception as e:
             logger.error(f"Error sending response for task {task_id}: {e}")
+
+    async def _request_tts_synthesis(self, text: str, message_id: str, task_id: str):
+        """将文本发送到TTS请求队列"""
+        if not redis_client:
+            logger.error("Redis client not available for TTS request")
+            return
+        
+        try:
+            # 从配置中获取TTS请求队列的名称
+            tts_queue_name = config.get("tts", {}).get("request_queue", "tts_requests")
+
+            # 构建TTS请求消息
+            tts_request = {
+                "message_id": message_id,
+                "task_id": task_id, #将task_id作为参数传递给TTS服务
+                "text": text,
+                "response_channel": f"task_response:{task_id}" # 明确告诉TTS服务将结果发到哪里
+            }
+
+            # 使用 LPUSH 将请求推入队列
+            await redis_client.lpush(tts_queue_name, json.dumps(tts_request))
+            logger.info(f"Sent TTS request for task {task_id} to queue {tts_queue_name}")
+
+        except Exception as e:
+            logger.error(f"Error sending TTS request for task {task_id}: {e}")
     
     async def _send_error_response(self, task_id: str, error_message: str):
         """发送错误响应"""

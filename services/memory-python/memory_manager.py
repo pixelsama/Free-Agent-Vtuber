@@ -190,6 +190,7 @@ class MemoryManager:
                 "user_id": message_data["user_id"],
                 "message_id": message_data["message_id"],
                 "source": message_data["source"],
+                "content": message_data["content"],
                 "require_ai_response": message_data["require_ai_response"],
                 "timestamp": message_data["timestamp"],
                 "task_id": message_data.get("metadata", {}).get("task_id")

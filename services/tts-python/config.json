@@ -1,0 +1,44 @@
+{
+    "redis": {
+        "host": "localhost",
+        "port": 6379,
+        "db": 0,
+        "password": null
+    },
+    "tts": {
+        "default_provider": "edge",
+        "request_queue": "tts_requests",
+        "response_channel_prefix": "task_response:",
+        "error_channel": "tts_errors",
+        "max_text_length": 4000,
+        "timeout": 30,
+        "retry_attempts": 3,
+        "retry_delay": 1.0
+    },
+    "providers": {
+        "openai": {
+            "api_key": "${OPENAI_API_KEY}",
+            "model": "tts-1",
+            "voice": "alloy",
+            "speed": 1.0,
+            "response_format": "mp3"
+        },
+        "edge": {
+            "voice": "zh-CN-XiaoxiaoNeural",
+            "rate": "+0%",
+            "pitch": "+0Hz"
+        },
+        "elevenlabs": {
+            "api_key": "${ELEVENLABS_API_KEY}",
+            "voice_id": "21m00Tcm4TlvDq8ikWAM",
+            "model_id": "eleven_monolingual_v1",
+            "stability": 0.5,
+            "similarity_boost": 0.5
+        }
+    },
+    "logging": {
+        "level": "INFO",
+        "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        "file": "tts_service.log"
+    }
+}

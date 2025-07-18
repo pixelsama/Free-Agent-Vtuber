@@ -15,6 +15,9 @@ openai==1.7.2
 httpx==0.25.0
 aiohttp==3.9.3
 
+# ===== TTS服务 =====
+edge-tts==7.0.2
+
 # ===== 文件和异步处理 =====
 aiofiles==23.2.1
 asyncio-mqtt==0.11.1
