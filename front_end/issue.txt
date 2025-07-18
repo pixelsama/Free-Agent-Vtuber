@@ -1,0 +1,28 @@
+Received binary audio data chunk (expecting ID 0). useApi.js:296:20
+Stored audio chunk 0. Received 1/3 useApi.js:307:29
+Output WebSocket message received (task 7d864018-f769-4da4-85f7-6df216e9e3be): {"type": "audio_chunk", "task_id": "7d864018-f769-4da4-85f7-6df216e9e3be", "chunk_id": 1, "total_chunks": 3} useApi.js:292:16
+Received audio chunk metadata: ID 1/3 useApi.js:337:22
+Output WebSocket message received (task 7d864018-f769-4da4-85f7-6df216e9e3be): 
+Blob { size: 65536, type: "" }
+useApi.js:292:16
+Received binary audio data chunk (expecting ID 1). useApi.js:296:20
+Stored audio chunk 1. Received 2/3 useApi.js:307:29
+Output WebSocket message received (task 7d864018-f769-4da4-85f7-6df216e9e3be): {"type": "audio_chunk", "task_id": "7d864018-f769-4da4-85f7-6df216e9e3be", "chunk_id": 2, "total_chunks": 3} useApi.js:292:16
+Received audio chunk metadata: ID 2/3 useApi.js:337:22
+Output WebSocket message received (task 7d864018-f769-4da4-85f7-6df216e9e3be): 
+Blob { size: 19984, type: "" }
+useApi.js:292:16
+Received binary audio data chunk (expecting ID 2). useApi.js:296:20
+Stored audio chunk 2. Received 3/3 useApi.js:307:29
+Output WebSocket message received (task 7d864018-f769-4da4-85f7-6df216e9e3be): {"type": "audio_complete", "task_id": "7d864018-f769-4da4-85f7-6df216e9e3be"} useApi.js:292:16
+Received audio complete signal. useApi.js:346:22
+Reassembling audio from 3 chunks... useApi.js:223:19
+Audio reassembled successfully. Blob size: 151056 useApi.js:232:19
+Created audio object URL: blob:http://localhost:3000/010d2b14-674c-45d0-9975-f618df0ce7a0 useApi.js:240:19
+Disconnecting output WebSocket. useApi.js:394:15
+Output WebSocket disconnected: Client disconnecting normally Code: 1000 useApi.js:374:16
+Error fetching audio: Error: Not Found
+    fetchAudio useApi.js:596
+useApi.js:605:15
+Error during audio playback: Error: TTS service returned null
+    playAudioWithLipSync Live2DViewer.vue:586
