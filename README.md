@@ -51,9 +51,10 @@
 * **图标**: [Material Design Icons](https://materialdesignicons.com/)
 
 ### 管理与监控
-* **服务管理**: [Flask](https://flask.palletsprojects.com/) - 轻量级Web管理界面
-* **进程管理**: Python subprocess + psutil - 服务生命周期管理
-* **实时监控**: WebSocket + 日志流 - 实时服务状态监控
+* **本地开发管理**: [Flask](https://flask.palletsprojects.com/) - 轻量级Web管理界面（仅用于本地开发）
+* **进程管理**: Python subprocess + psutil - 本地服务生命周期管理
+* **实时监控**: WebSocket + 日志流 - 本地开发时的实时服务状态监控
+* **生产部署**: Docker独立容器部署，无需集中管理器
 
 ### 虚拟形象驱动
 * **VTube Studio**: [VTube Studio](https://store.steampowered.com/app/1325860/VTube_Studio/) (通过其API进行控制)
@@ -214,8 +215,10 @@ Docker部署是最简单、最可靠的部署方式，所有服务都运行在�
     ```
 
 5.  **访问应用**
-    - 🎛️ **管理界面**: http://localhost:5000
+    - 🌐 **网关服务**: http://localhost:8000 - 微服务API网关
     - 🎭 **虚拟主播界面**: 需要单独启动前端（见下方说明）
+    
+    **注意**: Docker部署模式下，所有微服务独立运行，无集中管理界面。如需管理界面，请使用本地部署模式。
 
 **Docker常用命令：**
 ```bash
@@ -333,10 +336,16 @@ docker system prune
 
 #### 服务端口说明
 
-- **管理器**: `http://localhost:5000` - 服务管理界面
-- **前端**: `http://localhost:5173` - AI虚拟主播交互界面（本地启动）
+**本地部署模式：**
+- **管理器**: `http://localhost:5000` - 服务管理界面（仅本地部署）
+- **前端**: `http://localhost:5173` - AI虚拟主播交互界面
 - **Redis**: `localhost:6379` - 消息总线
-- **各微服务**: 通过Redis进行通信，无需直接访问
+
+**Docker部署模式：**
+- **网关服务**: `http://localhost:8000` - 微服务API网关
+- **前端**: `http://localhost:5173` - AI虚拟主播交互界面（需单独启动）
+- **Redis**: `localhost:6379` - 消息总线
+- **各微服务**: 通过Redis进行通信，独立容器运行
 
 ## 开发与测试
 

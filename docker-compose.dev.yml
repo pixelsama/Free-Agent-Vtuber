@@ -1,6 +1,6 @@
 version: '3.8'
 
-# 开发环境配置 - 支持热重载和调试
+# 开发环境配置 - 只启动Redis，其他服务由本地manager管理
 services:
   # Redis 消息总线
   redis:
@@ -11,28 +11,6 @@ services:
     volumes:
       - redis_dev_data:/data
     restart: unless-stopped
-
-
-
-  # 管理器开发服务
-  manager-dev:
-    build:
-      context: ./manager
-      dockerfile: Dockerfile.dev
-    container_name: aivtuber-manager-dev
-    ports:
-      - "5000:5000"
-    volumes:
-      - ./manager:/app
-      - ./manager/Log:/app/Log
-    environment:
-      - FLASK_ENV=development
-      - FLASK_DEBUG=1
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-    restart: unless-stopped
-    depends_on:
-      - redis
 
 volumes:
   redis_dev_data:

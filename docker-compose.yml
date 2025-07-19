@@ -18,29 +18,7 @@ services:
 
 
 
-  # 管理器服务
-  manager:
-    build:
-      context: ./manager
-      dockerfile: Dockerfile
-    container_name: aivtuber-manager
-    ports:
-      - "5000:5000"
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-    volumes:
-      - ./manager/Log:/app/Log
-      - ./services/chat-ai-python:/services/chat-ai-python
-      - ./services/gateway-python:/services/gateway-python
-      - ./services/input-handler-python:/services/input-handler-python
-      - ./services/memory-python:/services/memory-python
-      - ./services/output-handler-python:/services/output-handler-python
-      - ./services/tts-python:/services/tts-python
-    restart: unless-stopped
-    depends_on:
-      redis:
-        condition: service_healthy
+
 
   # AI聊天服务
   chat-ai:
