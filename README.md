@@ -115,7 +115,7 @@ npm run dev
 
 **访问地址：**
 - 🎛️ **管理界面**: http://localhost:5000 - 管理所有微服务
-- 🎭 **虚拟主播界面**: http://localhost:3000 - AI交互界面
+- 🎭 **虚拟主播界面**: http://localhost:5173 - AI交互界面（本地启动）
 
 ## 开始使用
 
@@ -215,7 +215,7 @@ Docker部署是最简单、最可靠的部署方式，所有服务都运行在�
 
 5.  **访问应用**
     - 🎛️ **管理界面**: http://localhost:5000
-    - 🎭 **虚拟主播界面**: http://localhost:3000
+    - 🎭 **虚拟主播界面**: 需要单独启动前端（见下方说明）
 
 **Docker常用命令：**
 ```bash
@@ -286,7 +286,7 @@ docker system prune
     # 启动开发服务器
     npm run dev
     ```
-    前端将在 `http://localhost:3000` 启动，提供AI虚拟主播的交互界面。
+    前端将在 `http://localhost:5173` 启动，提供AI虚拟主播的交互界面。
 
 #### 🔧 方式三：手动启动各服务
 
@@ -334,7 +334,7 @@ docker system prune
 #### 服务端口说明
 
 - **管理器**: `http://localhost:5000` - 服务管理界面
-- **前端**: `http://localhost:3000` - AI虚拟主播交互界面
+- **前端**: `http://localhost:5173` - AI虚拟主播交互界面（本地启动）
 - **Redis**: `localhost:6379` - 消息总线
 - **各微服务**: 通过Redis进行通信，无需直接访问
 

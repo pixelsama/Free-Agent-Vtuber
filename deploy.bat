@@ -50,10 +50,15 @@ echo 🔍 检查服务状态...
 docker compose ps
 
 echo.
-echo ✅ 部署完成！
+echo ✅ 后端服务部署完成！
 echo.
 echo 🎛️  管理界面: http://localhost:5000
-echo 🎭 虚拟主播界面: http://localhost:3000
+echo.
+echo ⚠️  前端需要单独启动：
+echo    cd front_end
+echo    npm install
+echo    npm run dev
+echo    前端将运行在: http://localhost:5173
 echo.
 echo 📊 查看日志: docker compose logs -f [服务名]
 echo 🛑 停止服务: docker compose down

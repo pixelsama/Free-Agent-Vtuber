@@ -16,17 +16,7 @@ services:
       timeout: 3s
       retries: 3
 
-  # 前端服务
-  frontend:
-    build:
-      context: ./front_end
-      dockerfile: Dockerfile
-    container_name: aivtuber-frontend
-    ports:
-      - "3000:80"
-    restart: unless-stopped
-    depends_on:
-      - redis
+
 
   # 管理器服务
   manager:

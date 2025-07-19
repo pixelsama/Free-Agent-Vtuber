@@ -12,22 +12,7 @@ services:
       - redis_dev_data:/data
     restart: unless-stopped
 
-  # 前端开发服务（热重载）
-  frontend-dev:
-    build:
-      context: ./front_end
-      dockerfile: Dockerfile.dev
-    container_name: aivtuber-frontend-dev
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./front_end:/app
-      - /app/node_modules
-    environment:
-      - NODE_ENV=development
-    restart: unless-stopped
-    depends_on:
-      - redis
+
 
   # 管理器开发服务
   manager-dev:
