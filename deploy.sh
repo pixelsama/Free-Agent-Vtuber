@@ -45,9 +45,9 @@ echo "🔍 检查服务状态..."
 docker compose ps
 
 echo ""
-echo "✅ 后端服务部署完成！"
+echo "✅ 微服务部署完成！"
 echo ""
-echo "🎛️  管理界面: http://localhost:5000"
+echo "🌐 网关服务: http://localhost:8000"
 echo ""
 echo "⚠️  前端需要单独启动："
 echo "   cd front_end"
