@@ -41,6 +41,12 @@ services:
       - REDIS_PORT=6379
     volumes:
       - ./manager/Log:/app/Log
+      - ./services/chat-ai-python:/services/chat-ai-python
+      - ./services/gateway-python:/services/gateway-python
+      - ./services/input-handler-python:/services/input-handler-python
+      - ./services/memory-python:/services/memory-python
+      - ./services/output-handler-python:/services/output-handler-python
+      - ./services/tts-python:/services/tts-python
     restart: unless-stopped
     depends_on:
       redis:

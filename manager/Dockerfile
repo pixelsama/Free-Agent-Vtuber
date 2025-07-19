@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # 创建日志目录
-RUN mkdir -p Log
+# RUN mkdir -p Log
 
 # 暴露端口
 EXPOSE 5000

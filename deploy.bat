@@ -12,7 +12,7 @@ if %errorlevel% neq 0 (
 )
 
 REM 检查Docker Compose
-docker-compose --version >nul 2>&1
+docker compose version >nul 2>&1
 if %errorlevel% neq 0 (
     echo ❌ Docker Compose 未安装，请先安装 Docker Compose
     pause
@@ -38,16 +38,16 @@ if %errorlevel% equ 0 (
 )
 
 echo 🔧 构建Docker镜像...
-docker-compose build
+docker compose build
 
 echo 🚀 启动服务...
-docker-compose up -d
+docker compose up -d
 
 echo ⏳ 等待服务启动...
 timeout /t 10 /nobreak >nul
 
 echo 🔍 检查服务状态...
-docker-compose ps
+docker compose ps
 
 echo.
 echo ✅ 部署完成！
@@ -55,7 +55,7 @@ echo.
 echo 🎛️  管理界面: http://localhost:5000
 echo 🎭 虚拟主播界面: http://localhost:3000
 echo.
-echo 📊 查看日志: docker-compose logs -f [服务名]
-echo 🛑 停止服务: docker-compose down
-echo 🔄 重启服务: docker-compose restart [服务名]
+echo 📊 查看日志: docker compose logs -f [服务名]
+echo 🛑 停止服务: docker compose down
+echo 🔄 重启服务: docker compose restart [服务名]
 pause
