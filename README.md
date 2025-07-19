@@ -74,12 +74,13 @@
 git clone https://github.com/your_username/AIVtuber.git
 cd AIVtuber
 
-# 2. 配置环境变量
+# 2. 配置环境变量（模型服务商的url，应当在services/chat-ai-python和services/memory-python中的config.json配置。未来版本将支持url环境变量配置）
 cp .env.example .env
 # 编辑 .env 文件，设置您的 OPENAI_API_KEY
 
 # 3. 一键部署
 # Linux/macOS:
+chmod +x ./deploy.sh
 ./deploy.sh
 
 # Windows:
