@@ -27,9 +27,11 @@ task_status: Dict[str, str] = {}
 async def init_redis():
     global redis_client
     try:
-        redis_client = redis.Redis(host='localhost', port=6379, decode_responses=True)
+        redis_host = os.getenv("REDIS_HOST", "localhost")
+        redis_port = int(os.getenv("REDIS_PORT", 6379))
+        redis_client = redis.Redis(host=redis_host, port=redis_port, decode_responses=True)
         await redis_client.ping()
-        logger.info("Connected to Redis")
+        logger.info(f"Connected to Redis at {redis_host}:{redis_port}")
     except Exception as e:
         logger.error(f"Failed to connect to Redis: {e}")
         redis_client = None

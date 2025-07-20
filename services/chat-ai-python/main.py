@@ -390,16 +390,26 @@ class TaskProcessor:
             logger.error(f"Error sending error response: {e}")
 
 async def init_redis():
+    """初始化Redis连接，优先从环境变量读取配置"""
     global redis_client
     try:
-        redis_config = config.get("redis", {})
+        # 优先从环境变量获取Redis配置
+        redis_host = os.getenv("REDIS_HOST", "localhost")
+        redis_port = int(os.getenv("REDIS_PORT", 6379))
+
+        # 如果环境变量没有，再尝试从config.json读取
+        if redis_host == "localhost":
+            redis_config = config.get("redis", {})
+            redis_host = redis_config.get("host", redis_host)
+            redis_port = redis_config.get("port", redis_port)
+
         redis_client = redis.Redis(
-            host=redis_config.get("host", "localhost"), 
-            port=redis_config.get("port", 6379), 
+            host=redis_host,
+            port=redis_port,
             decode_responses=True
         )
         await redis_client.ping()
-        logger.info("Connected to Redis")
+        logger.info(f"Connected to Redis at {redis_host}:{redis_port}")
     except Exception as e:
         logger.error(f"Failed to connect to Redis: {e}")
         redis_client = None

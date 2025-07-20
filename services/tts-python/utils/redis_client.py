@@ -1,4 +1,5 @@
 import redis.asyncio as redis
+import os
 from typing import Dict, Any
 
 class RedisClient:
@@ -7,9 +8,12 @@ class RedisClient:
     """
 
     def __init__(self, config: Dict[str, Any]):
+        redis_host = os.getenv("REDIS_HOST", config.get("host", "localhost"))
+        redis_port = int(os.getenv("REDIS_PORT", config.get("port", 6379)))
+
         self.pool = redis.ConnectionPool(
-            host=config.get("host", "localhost"),
-            port=config.get("port", 6379),
+            host=redis_host,
+            port=redis_port,
             db=config.get("db", 0),
             password=config.get("password"),
             decode_responses=True

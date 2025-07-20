@@ -46,6 +46,8 @@ services:
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - INPUT_HANDLER_URL=ws://input-handler:8001
+      - OUTPUT_HANDLER_URL=ws://output-handler:8002
     restart: unless-stopped
     depends_on:
       redis:

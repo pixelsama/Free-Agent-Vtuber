@@ -1,10 +1,11 @@
 {
     "redis": {
-        "host": "localhost",
-        "port": 6379,
-        "db": 0,
-        "password": null
-    },
+    "db": 0,
+    "password": null,
+    "request_queue": "tts_requests",
+    "response_channel_prefix": "task_response:",
+    "error_channel": "tts_errors"
+  },
     "tts": {
         "default_provider": "edge",
         "request_queue": "tts_requests",

@@ -1,7 +1,5 @@
 {
   "redis": {
-    "host": "localhost",
-    "port": 6379,
     "input_queue": "user_input_queue"
   },
   "memory": {

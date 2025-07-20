@@ -1,10 +1,7 @@
 {
     "redis": {
-        "host": "localhost",
-        "port": 6379,
-        "input_queue": "user_input_queue",
-        "response_channel_prefix": "task_response:"
-    },
+    "some_other_config": "value"
+  },
     "ai": {
         "provider": "openai_compatible",
         "api_base": "https://generativelanguage.googleapis.com/v1beta/openai/",

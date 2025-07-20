@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 from typing import Dict
 
@@ -18,8 +19,8 @@ logger = logging.getLogger(__name__)
 
 # 后端服务配置
 BACKEND_SERVICES = {
-    "input": "ws://localhost:8001",
-    "output": "ws://localhost:8002"
+    "input": os.getenv("INPUT_HANDLER_URL", "ws://localhost:8001"),
+    "output": os.getenv("OUTPUT_HANDLER_URL", "ws://localhost:8002")
 }
 
 # 活跃连接跟踪
