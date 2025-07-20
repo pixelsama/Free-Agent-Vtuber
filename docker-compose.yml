@@ -27,8 +27,8 @@ services:
       dockerfile: Dockerfile
     container_name: aivtuber-chat-ai
     environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     restart: unless-stopped
     depends_on:
@@ -44,8 +44,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
       - INPUT_HANDLER_URL=ws://input-handler:8001
       - OUTPUT_HANDLER_URL=ws://output-handler:8002
     restart: unless-stopped
@@ -60,8 +60,8 @@ services:
       dockerfile: Dockerfile
     container_name: aivtuber-input-handler
     environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
     restart: unless-stopped
     depends_on:
       redis:
@@ -74,8 +74,8 @@ services:
       dockerfile: Dockerfile
     container_name: aivtuber-memory
     environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
     volumes:
       - memory_data:/app/data
     restart: unless-stopped
@@ -90,8 +90,8 @@ services:
       dockerfile: Dockerfile
     container_name: aivtuber-output-handler
     environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
     restart: unless-stopped
     depends_on:
       redis:
@@ -104,8 +104,8 @@ services:
       dockerfile: Dockerfile
     container_name: aivtuber-tts
     environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
     restart: unless-stopped
     depends_on:
       redis:

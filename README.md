@@ -77,7 +77,7 @@ cd AIVtuber
 
 # 2. 配置环境变量（模型服务商的url，应当在services/chat-ai-python和services/memory-python中的config.json配置。未来版本将支持url环境变量配置）
 cp .env.example .env
-# 编辑 .env 文件，设置您的 OPENAI_API_KEY
+# 编辑 .env 文件，设置您的 OPENAI_API_KEY 以及可选的 Redis 连接信息
 
 # 3. 一键部署
 # Linux/macOS:
@@ -185,14 +185,21 @@ Docker部署是最简单、最可靠的部署方式，所有服务都运行在�
     # 复制环境变量模板
     cp .env.example .env
     
-    # 编辑 .env 文件，设置您的API密钥
+    # 编辑 .env 文件，设置您的API密钥和可选的Redis配置
     # Windows: notepad .env
     # macOS/Linux: nano .env 或 vim .env
     ```
     
     在 `.env` 文件中设置：
     ```env
+    # 必需：您的OpenAI API密钥
     OPENAI_API_KEY=your_actual_api_key_here
+
+    # 可选：自定义Redis连接信息
+    # 默认使用docker-compose内部的redis服务
+    # 如果您想连接到外部Redis，请取消下面的注释并修改
+    # REDIS_HOST=your_redis_host
+    # REDIS_PORT=your_redis_port
     ```
 
 3.  **一键部署**
