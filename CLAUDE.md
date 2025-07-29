@@ -21,11 +21,30 @@ AIVtuber/
 ├── manager/                 # Flask 管理界面
 ├── services/               # 微服务模块
 │   ├── chat-ai-python/     # AI 聊天模块
+│   │   ├── tests/          # 单元测试目录
+│   │   │   ├── unit/       # 单元测试
+│   │   │   └── integration/ # 集成测试
+│   │   └── (其他文件)
 │   ├── gateway-python/     # 网关模块
+│   │   ├── tests/          # 单元测试目录
+│   │   │   ├── unit/       # 单元测试
+│   │   │   └── integration/ # 集成测试
+│   │   └── (其他文件)
 │   ├── input-handler-python/  # 输入处理模块
+│   │   ├── tests/          # 单元测试目录
+│   │   │   ├── unit/       # 单元测试
+│   │   │   └── integration/ # 集成测试
+│   │   └── (其他文件)
 │   ├── memory-python/      # 记忆管理模块
+│   │   ├── tests/          # 单元测试目录
+│   │   │   ├── unit/       # 单元测试
+│   │   │   └── integration/ # 集成测试
+│   │   └── (其他文件)
 │   └── output-handler-python/ # 输出处理模块
-├── tests/                  # 测试目录
+│       ├── tests/          # 单元测试目录
+│       │   ├── unit/       # 单元测试
+│       │   └── integration/ # 集成测试
+│       └── (其他文件)
 ├── docs/                   # 项目文档
 └── dev-venv/              # 开发环境
 ```
@@ -68,11 +87,15 @@ pip install -r requirements-dev.txt
 ## 常用命令
 
 ### 测试命令
-- **运行所有测试**: `pytest tests/ -v`
-- **运行单元测试**: `pytest tests/unit/ -v`
-- **运行集成测试**: `pytest tests/integration/ -v`
-- **测试覆盖率**: `pytest tests/ --cov=services --cov-report=html`
-- **特定模块测试**: `pytest tests/unit/test_memory_manager.py -v`
+- **运行所有测试**: `cd services/<service-name> && pytest tests/ -v`
+- **运行单元测试**: `cd services/<service-name> && pytest tests/unit/ -v`
+- **运行集成测试**: `cd services/<service-name> && pytest tests/integration/ -v`
+- **测试覆盖率**: `cd services/<service-name> && pytest tests/ --cov=. --cov-report=html`
+- **特定模块测试**: `cd services/<service-name> && pytest tests/unit/test_<module>.py -v`
+
+### 批量测试命令
+- **运行所有服务的测试**: `for /d %i in (services/*) do cd %i && pytest tests/ -v && cd ../../`
+- **运行所有单元测试**: `for /d %i in (services/*) do cd %i && pytest tests/unit/ -v && cd ../../`
 
 ### 构建和运行
 - **启动管理器**: `cd manager && python app.py`
