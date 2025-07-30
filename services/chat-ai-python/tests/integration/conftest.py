@@ -1,6 +1,7 @@
 import json
 import os
 import pytest
+import pytest_asyncio
 import redis.asyncio as redis
 import asyncio
 from pathlib import Path
@@ -22,7 +23,7 @@ def redis_url():
     return os.getenv("REDIS_URL", "redis://localhost:6379/15")
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def redis_client(redis_url):
     """提供测试用的Redis客户端"""
     client = redis.Redis.from_url(redis_url, decode_responses=True)

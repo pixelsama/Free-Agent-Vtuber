@@ -40,7 +40,13 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-2. **启动后端服务**
+2. **安装测试依赖（可选）**
+```bash
+# 如果需要运行测试，安装测试依赖
+pip install -r requirements-test.txt
+```
+
+3. **启动后端服务**
 ```bash
 # 终端1: 启动input-handler
 cd services/input-handler-python
@@ -51,7 +57,7 @@ cd services/output-handler-python
 python main.py  # 运行在8002端口
 ```
 
-3. **启动网关**
+4. **启动网关**
 ```bash
 # 终端3: 启动gateway
 cd services/gateway-python
@@ -135,7 +141,33 @@ python main.py --log-level debug
 ```
 gateway-python/
 ├── main.py              # 主程序
-├── requirements.txt     # 依赖包
+├── requirements.txt     # 运行时依赖
+├── requirements-test.txt # 测试依赖
 ├── config.json         # 配置文件
+├── tests/              # 测试目录
+│   ├── unit/           # 单元测试
+│   └── integration/    # 集成测试
 └── README.md           # 说明文档
+```
+
+## 运行测试
+
+1. **安装测试依赖**
+```bash
+pip install -r requirements-test.txt
+```
+
+2. **运行单元测试**
+```bash
+pytest tests/unit
+```
+
+3. **运行集成测试**
+```bash
+pytest tests/integration
+```
+
+4. **运行所有测试**
+```bash
+pytest
 ```

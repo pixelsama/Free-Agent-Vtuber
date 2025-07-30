@@ -46,6 +46,9 @@ class TestTaskProcessor:
         import main as main_module
         original_redis_client = main_module.redis_client
         main_module.redis_client = mock_redis
+
+        # 设置test_processor.ai_processor 为mock对象
+        task_processor.ai_processor = AsyncMock()
         
         event_data = {
             "user_id": "test_user",
