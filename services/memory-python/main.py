@@ -108,7 +108,127 @@ class MemoryService:
             
         except Exception as e:
             logger.error(f"Error processing audio input: {e}")
-    
+
+    async def _process_audio_input(self, task_id: str, task_data: dict, user_id: str):
+        """处理音频输入并存储到记忆"""
+        try:
+            input_file = task_data["input_file"]
+            logger.info(f"Processing user audio: {input_file}")
+
+            #调用ASR模块进行语音识别
+            asr_text = await self._call_asr_service(input_file)
+
+            if asr_text:
+                # 存储识别出的文本到记忆
+                message_id = await memory_manager.store_message(
+                    user_id=user_id,
+                    message_type="text",
+                    content=asr_text,
+                    source="user",
+                    require_ai_response=True,
+                    metadata={"task_id": task_id, "input_file": input_file, "audio_file": input_file, "asr_processed": True}
+                )
+                logger.info(f"Stored ASR text from audio message {message_id}: {asr_text[:50]}...")
+
+            else:
+                # 如果ASR失败，存储音频元数据信息
+                message_id = await memory_manager.store_message(
+                    user_id=user_id,
+                    message_type="audio_metadata",
+                    content=f"[Audio recognition failed]",
+                    source="user",
+                    require_ai_response=False,
+                    metadata={
+                        "task_id": task_id, 
+                        "input_file": input_file, 
+                        "audio_file": input_file,
+                        "asr_processed": True,
+                        "asr_status": "failed",
+                        "error_message": "Asr processing failed"
+                    }
+                )
+                logger.warning(f"ASR failed for audio file {input_file}, stored metadata only for message {message_id}")
+            
+            self.processing_task[task_id] = "completed"
+
+        except Exception as e:
+            logger.error(f"Error processing audio input{e} ")
+            # 发生异常时的错误处理
+            try:
+                message_id = await memory_manager.store_message(
+                    user_id=user_id,
+                    message_type="audio_metadata",
+                    content="[Audio processing error]",
+                    source = "user",
+                    require_ai_response=False,
+                    metadata={
+                        "task_id": task_id,
+                        "input_file": task_data.get("input_file", "unknown"),
+                        "asr_status": "error",
+                        "error_message": str(e)
+                    }
+                )
+                logger.warning(f"Exception during audio processing, stored error metadata for message {message_id}")      
+            except Exception as store_error:
+                logger.error(f"Failed to store error information: {store_error}")
+
+    async def _call_asr_service(self, audio_file_path: str, max_retries: int = 2) -> Optional[str]:
+        """
+        调用ASR服务进行语音识别，带重试机制
+        """
+
+        for attempt in range(max_retries + 1):
+            try:
+                if not redis_client:
+                    logger.error("Redis client not available for ASR service call")
+                    return None
+                
+                # 创建ASR任务
+                asr_task_id = f"asr_{int(asyncio.get_event_loop().time() * 1000000)}_{attempt}"
+                asr_task_data = {
+                    "task_id": asr_task_id,
+                    "audio_file": audio_file_path,
+                    "timestamp": asyncio.get_event_loop().time(),
+                    "attempt" : attempt
+                }
+
+                # 发送到ASR处理队列
+                asr_queue_name = config.get("redis",{}).get("asr_queue", "asr_processing_queue") 
+                await redis_client.lpush(asr_queue_name, json.dumps(asr_task_data))
+
+                # 等待ASR结果（设置超时时间，例如30秒）
+                asr_result_channel = f"asr_result_{task_id}"
+                pubsub = redis_client.pubsub()
+                await pubsub.subscribe(asr_result_channel)
+                
+                try:
+                    # 使用asyncio.wait_for来设置超时
+                    async def wait_for_message():
+                        async for message in pubsub.listen():
+                            if message["type"] == "message":
+                                return json.loads(message["data"])
+                            
+                    result_data = await asyncio.wait_for(wait_for_message(), timeout=30.0)
+                    await pubsub.unsubscribe(asr_result_channel)
+
+                    if result_data.get("staus") == "success":
+                        return result_data.get("text")
+                    else:
+                        logger.error(f"ASR processing failed (attempt {attempt + 1}): {result_data.get('error')}")
+
+                except asyncio.TimeoutError:
+                    logger.error(f"ASR processing timeout for task {asr_task_id} (attempt {attempt + 1})")
+                    await pubsub.unsubscribe(asr_result_channel)
+
+            except Exception as e:
+                logger.error(f"Error calling ASR service (attempt {attempt + 1}): {e}")
+            finally:
+                try:
+                    await pubsub.close()
+                except:
+                    pass
+
+
     async def store_ai_response(self, user_id: str, response_text: str, 
                                original_message_id: str, audio_file: Optional[str] = None):
         """存储AI回复到记忆"""
