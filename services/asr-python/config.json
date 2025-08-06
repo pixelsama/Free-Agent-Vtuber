@@ -1,0 +1,33 @@
+{
+  "service": {
+    "name": "asr-python",
+    "concurrency": 2,
+    "log_level": "INFO"
+  },
+  "redis": {
+    "host": "localhost",
+    "port": 6379,
+    "db": 0,
+    "tasks_queue": "asr_tasks",
+    "results_channel": "asr_results"
+  },
+  "provider": {
+    "name": "fake",
+    "timeout_sec": 60,
+    "max_retries": 1,
+    "options": {
+      "lang": "zh",
+      "timestamps": true,
+      "diarization": false
+    },
+    "credentials": {
+      "api_key_env": "OPENAI_API_KEY",
+      "base_url": "https://api.openai.com/v1"
+    }
+  },
+  "audio": {
+    "target_sample_rate": 16000,
+    "channels": 1,
+    "max_duration_sec": 300
+  }
+}
