@@ -22,7 +22,7 @@ npm install
 npm run dev
 ```
 
-默认运行在 http://localhost:5173
+默认运行在 http://localhost:3000
 
 ## 生产构建
 
@@ -40,6 +40,9 @@ npm run preview
 
 ## 注意事项
 
-- 确保后端服务正在运行（通过Docker Compose启动）
-- 前端会连接到本地的后端API服务
+- 确保后端服务正在运行（通过 Docker Compose 启动网关与各微服务）
+- 前端仅使用双 WebSocket 与后端通信（不再通过 HTTP 拉取 TTS）
+  - 输入 WS：ws://localhost:8000/ws/input
+  - 输出 WS：ws://localhost:8000/ws/output/{task_id}
+- 音频输出采用 MP3（MIME: audio/mpeg），前端按分块重组后直接播放
 - 开发时修改代码会自动热重载

@@ -158,7 +158,7 @@ const testRandomMotion = () => {
 };
 
 // --- Composables ---
-const { fetchAudio, processingError } = useApi()
+const { processingError } = useApi()
 
 // Live2D Manager instance
 let live2dManager = null
@@ -578,16 +578,10 @@ const playAudioWithLipSync = async (text, audioUrl = null) => {
         throw new Error(`Failed to fetch audio: ${response.status}`);
       }
       audioData = await response.arrayBuffer();
-    } else if (text) {
-      // 使用TTS服务
-      console.log('Fetching TTS audio for text:', text);
-      const audioBlob = await fetchAudio(text);
-      if (!audioBlob) {
-        throw new Error('TTS service returned null');
-      }
-      audioData = await audioBlob.arrayBuffer();
     } else {
-      throw new Error('Either text or audioUrl must be provided');
+      // 仅保留双 WS 模式：不再通过 HTTP 拉取 TTS。
+      // 若未提供 audioUrl（应来自 WS 重组），则提示用户或上层逻辑确保提供。
+      throw new Error('未提供可播放的音频URL（当前仅支持通过 WebSocket 获取的音频）。');
     }
 
     // 2. 解码音频数据

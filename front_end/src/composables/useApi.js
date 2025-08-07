@@ -4,9 +4,8 @@ import { ref, shallowRef } from 'vue';
 // 在实际应用中，这些应该来自配置文件或环境变量
 // 注意: 如果你的前端和后端不在同一地址或端口，需要修改这里
 const apiProtocol = window.location.protocol;
-const apiBaseUrl = `${apiProtocol}//${window.location.hostname}:8000`; // 假设后端在 8000 端口
 const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-const wsBaseUrl = `${wsProtocol}//${window.location.hostname}:8000`; // 假设后端在 8000 端口
+const wsBaseUrl = `${wsProtocol}//${window.location.hostname}:8000`; // 假设后端在 8000 端口（仅保留 WS）
 const wsInputUrl = `${wsBaseUrl}/ws/input`;
 
 // --- Reactive State ---
@@ -227,7 +226,7 @@ export function useApi() {
               throw new Error("Some received audio chunks are invalid.");
           }
 
-          // TODO: Determine actual MIME type from backend if possible, default to wav for now
+          // 确认 MP3 为统一输出格式
           const completeAudioBlob = new Blob(validChunks, { type: 'audio/mpeg' });
           console.log("Audio reassembled successfully. Blob size:", completeAudioBlob.size);
 
@@ -573,40 +572,7 @@ export function useApi() {
       }
   };
 
-  // --- Fetching Audio for Text (TTS) ---
-  const fetchAudio = async (text) => {
-    console.log('Fetching audio for text:', text);
-    processingError.value = null;
-
-    try {
-      const response = await fetch(`${apiBaseUrl}/api/tts`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ text: text }),
-        }
-      );
-
-      if (!response.ok) {
-        // Try to get error message from response body
-        const errorData = await response.json().catch(() => null); // Avoid further errors if body is not json
-        const errorMessage = errorData?.detail || `HTTP error! status: ${response.status}`;
-        throw new Error(errorMessage);
-      }
-
-      console.log('Successfully fetched audio data.');
-      // We expect the response to be the audio file itself
-      const audioBlob = await response.blob();
-      return audioBlob;
-
-    } catch (error) {
-      console.error('Error fetching audio:', error);
-      processingError.value = `获取音频失败: ${error.message}`;
-      return null; // Return null on failure
-    }
-  };
+  // --- HTTP TTS 拉取已移除：仅保留双 WS 模式 ---
 
   // Return reactive refs and methods
   return {
@@ -627,7 +593,6 @@ export function useApi() {
     connectInput,
     sendTextInput,
     disconnectInput,
-    disconnectOutput, // connectOutput is called internally for now
-    fetchAudio // 导出新函数
+    disconnectOutput // connectOutput is called internally for now
   };
 }
