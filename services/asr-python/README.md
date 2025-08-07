@@ -26,6 +26,43 @@ python main.py
 ```bash
 export OPENAI_API_KEY=sk-xxx
 # 修改 config.json 中 provider.name 为 "openai_whisper"（默认是 "fake"）
+
+### 使用 FunASR（本地）
+本模块支持使用 FunASR 进行本地离线识别（优先中文通用模型）。首版仅输出整体文本（不包含词级时间戳与说话人分离）。
+
+1) 安装依赖
+- 请先根据设备安装合适的 PyTorch 版本（CPU/GPU），参考官方指引：
+  https://pytorch.org/get-started/locally/
+- 然后在 asr-python 模块虚拟环境中安装依赖：
+  pip install -r requirements.txt
+
+2) 模型缓存目录
+- 默认缓存到 ~/.cache/modelscope（容器中通常为 /root/.cache/modelscope）
+- 推荐生产环境配置持久化目录，如 /data/models/modelscope，并在部署时挂载：
+  volumes:
+    - /data/models/modelscope:/root/.cache/modelscope
+- 也可以通过配置项 provider.options.cache_dir 显式指定缓存目录
+
+3) 配置切换到 FunASR
+在 config.json 中设置：
+{
+  "provider": {
+    "name": "funasr_local",
+    "timeout_sec": 120,
+    "max_retries": 1,
+    "options": {
+      "model_id": "iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
+      "device": "cpu",
+      "timestamps": false,
+      "diarization": false,
+      "cache_dir": "/data/models/modelscope"
+    }
+  }
+}
+
+4) 运行
+- 首次运行会下载模型，耗时较长；成功后将缓存于上述目录，后续复用无需重复下载
+- 仍按“运行”章节方式启动 main.py 即可
 ```
 
 ## 测试

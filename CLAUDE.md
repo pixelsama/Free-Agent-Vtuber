@@ -135,6 +135,96 @@ pip install -r requirements-dev.txt
 
 ## 开发指南
 
+### 测试规范（统一标准）
+
+以下规范来自最近在 services/asr-python 模块中实践并验证通过的经验总结，作为全仓库的统一标准，适用于所有 Python 服务模块（chat-ai-python、gateway-python、input-handler-python、memory-python、output-handler-python、tts-python 等）。
+
+1) 目录与根路径
+- 每个服务模块的测试均在该模块目录下运行，例如：
+  - cd services/<service-name> && pytest tests/ -v
+- 测试与运行都以“模块目录”为根目录，不依赖仓库根目录。
+
+2) 可导入包与 PythonPath
+- 模块目录必须是一个可导入包：在模块根目录创建 __init__.py。
+- 在模块根目录添加 pytest.ini，显式指定当前目录进入 PythonPath，避免不同环境下 sys.path 差异导致的导入错误：
+  [pytest]
+  pythonpath = .
+  asyncio_mode = strict
+
+3) 模块化拆分与导入方式
+- 不建议从入口脚本 main.py 直接导入被测逻辑。应将可复用逻辑拆分到独立模块（如 asr_service.py、providers/factory.py），测试从这些模块导入：
+  from asr_service import RedisClient, worker_loop
+  from providers.factory import build_provider
+- 入口脚本仅负责装配（加载配置、创建依赖、启动服务），不承载业务实现。
+
+4) Pydantic v2 数据模型与序列化
+- 使用 Pydantic v2（BaseModel.model_dump/model_dump_json），禁止传入 ensure_ascii 等不兼容参数，统一：
+  result_json = model.model_dump_json()
+- 使用 Pydantic 对配置（AppConfig）与消息（TaskMessage、ResultMessage）进行强校验，尽早暴露错误。
+
+5) 异步测试规范（pytest-asyncio）
+- 统一使用 pytest-asyncio，asyncio_mode 设为 strict（见 pytest.ini）。
+- 异步测试函数使用 @pytest.mark.asyncio 装饰。
+- 若需要替代外部依赖（如 Redis），在测试中使用内存桩（Dummy 类）模拟网络调用，避免不必要的集成依赖，提升单测稳定性与速度。
+
+6) Redis 交互测试策略
+- 单元测试：使用 DummyRedis 内存桩对象替代真实 Redis，验证核心逻辑（如 BLPOP → Provider → 发布结果）。
+- 集成测试（可选）：在 tests/integration/ 下编写，依赖 docker-compose.dev.yml 的 Redis，逐步增加端到端覆盖。
+
+7) 消息契约与发布
+- 入队消息（任务）：遵循统一 schema（示例：TaskMessage），最少字段包含 task_id、audio（type=file、path、format、sample_rate、channels）、options、meta。
+- 出队消息（结果）：遵循 ResultMessage，status ∈ {finished, failed, partial}，finished 必须包含 text，failed 必须包含 error。
+- 发布到 Redis 时，使用 Pydantic 的 model_dump_json() 输出 JSON 字符串，配合 Redis decode_responses=True。
+
+8) 失败与超时处理
+- 对外部调用（如 Provider）使用 asyncio.timeout 包裹，超时捕获为 asyncio.TimeoutError 并发布 failed。
+- 统一错误日志与错误消息，便于排查与监控。
+
+9) 测试命名与布局
+- tests/unit/ 放置单元测试，tests/integration/ 放置集成测试。
+- 测试文件命名：test_<module>.py；用例命名：test_<behavior>。
+- 每个服务在 README 中包含“测试”章节，明确命令与注意事项。
+
+10) 示例：内存桩（DummyRedis）单测模型
+- 通过内存列表模拟队列与发布，避免真实 Redis：
+  class DummyRedis(RedisClient):
+      async def blpop(...): ...
+      async def publish(...): ...
+      async def lpush(...): ...
+- 构造最小任务消息，运行 worker_loop，断言发布结果的字段与状态。
+
+11) 约束与一致性
+- 严禁在测试中依赖隐式 sys.path 行为（不同环境、插件可能不同），务必使用 __init__.py + pytest.ini 组合保障导入稳定。
+- 入口脚本与可复用逻辑分离，保证测试无需导入 main.py。
+
+落实示例（ASR 模块摘录）
+- 包结构：
+  services/asr-python/
+  ├── __init__.py
+  ├── pytest.ini                 # pythonpath = .
+  ├── main.py                    # 入口：加载配置，调用 run_service
+  ├── asr_service.py             # 核心逻辑：load_config、RedisClient、worker_loop、run_service
+  ├── schemas.py                 # Pydantic：AppConfig/TaskMessage/ResultMessage
+  ├── providers/
+  │   ├── asr_provider.py        # BaseASRProvider、ASRResult
+  │   └── factory.py             # FakeProvider、build_provider（支持 openai_whisper）
+  └── tests/
+      └── unit/
+          └── test_asr_service.py
+
+- 单测片段（简化）：
+  from asr_service import RedisClient, worker_loop
+  from providers.factory import FakeProvider, build_provider
+
+  @pytest.mark.asyncio
+  async def test_worker_loop_with_fake_provider():
+      published, tasks = [], []
+      class DummyRedis(RedisClient):
+          ...
+      # 入队任务 → 跑 loop → 断言结果 status=finished、text="测试文本"
+
+以上规范已在 ASR 模块实践并通过，后续新增/改动模块应复用相同策略，确保一致性与可维护性。
+
 ### 添加新功能时
 1. 首先理解现有代码结构和风格
 2. 查看相关的配置文件和依赖

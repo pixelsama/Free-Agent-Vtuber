@@ -60,6 +60,42 @@
 
 ## 二、后续阶段规划（建议迭代顺序）
 
+### Phase X：FunASR 本地 ASR 支持
+- 目标：在本地环境引入 FunASR 中文通用模型的离线识别能力，作为可与 Fake/OpenAI Whisper 互换的 Provider 选项；首版仅输出整体文本 text，words 留空。
+- 依赖：funasr、modelscope（直接加入 requirements.txt）；torch 由用户按设备（CPU/GPU）自行安装适配版本。
+- 模型缓存：
+  - 默认：~/.cache/modelscope（容器中通常为 /root/.cache/modelscope）
+  - 可配置：provider.options.cache_dir（推荐生产部署指定到持久化目录，如 /data/models/modelscope）
+- 配置示例（README 展示，不强制修改默认 config.json）：
+  ```
+  "provider": {
+    "name": "funasr_local",
+    "timeout_sec": 120,
+    "max_retries": 1,
+    "options": {
+      "model_id": "iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
+      "device": "cpu",
+      "timestamps": false,
+      "diarization": false,
+      "cache_dir": "/data/models/modelscope"
+    }
+  }
+  ```
+- 交付物：
+  - services/asr-python/providers/funasr_local.py（实现 BaseASRProvider，返回整体文本）
+  - providers/factory.py 注册 "funasr_local"
+  - requirements.txt 增加 funasr、modelscope
+  - README 增加“使用 FunASR（本地）”章节（安装顺序、缓存与挂载、示例配置）
+  - tests/unit/test_funasr_provider.py（monkeypatch FunASR 加载/推理为 Dummy，避免实际下载）
+- 风险与注意：
+  - 模型体积与首次下载耗时较长；建议通过 cache_dir 进行持久化与复用
+  - torch 版本与 CUDA 兼容性差异；README 指引按官方方式安装
+  - 时间戳/说话人分离后续迭代，首版仅 text
+- 验收标准：
+  - 配置切换为 funasr_local 后，能够消费任务并发布 finished 文本结果
+  - 单元测试稳定，不依赖外网下载
+  - 失败路径（文件不存在/模型加载失败）有清晰错误映射与日志
+
 ### Phase 2：Provider 扩展与配置健壮性
 - 完成 OpenAI Whisper 真实实现：失败重试、超时、错误映射、日志脱敏
 - Provider 工厂拆分文件结构（与 tts-python providers 对齐）：新增 asr_provider.py 抽象与 factory.py
