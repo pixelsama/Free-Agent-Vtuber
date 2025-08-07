@@ -64,10 +64,31 @@ AIVtuber/
 - **消息格式**: JSON 格式，包含必要的元数据
 - **频道命名**: 使用前缀区分用途，如 `memory_updates`
 
+统一契约（新增/更新）：
+- asr_tasks（list）：网关 → ASR（TaskMessage，见 asr-python/schemas.py）
+- asr_results（pub/sub）：ASR → 全局（ResultMessage；status=finished 必须包含 text；failed 必须包含 error）
+- user_input_queue（list）：input-handler → memory（content 优先）
+  - 统一任务结构（示例）：
+    {
+      "task_id": "沿用上游，如 ASR task_id",
+      "type": "text" | "audio",
+      "user_id": "anonymous",
+      "content": "识别文本（推荐）",
+      "input_file": "/path/to/file（可选兜底）",
+      "source": "asr" | "user" | "system",
+      "timestamp": 1234567890,
+      "meta": { "trace_id": "...", "lang": "zh", "from_channel": "asr_results", "provider": "fake|openai_whisper|funasr_local" }
+    }
+- memory_updates（pub/sub）：memory → chat-ai
+- ai_responses（pub/sub）：chat-ai → memory 存档
+- tts_requests（list）：chat-ai → tts
+- task_response:{task_id}（pub/sub）：tts → output/gateway
+
 ### 服务间通信
 - 所有服务通过 Redis 进行通信
 - 每个服务独立运行，拥有独立的虚拟环境
 - 使用发布/订阅模式进行事件通知
+- 自 2025-08 起：输入归一化由 input-handler 承担。input-handler 订阅 ASR 的 asr_results，将 status=finished 的识别文本转为统一“用户输入任务”（content 优先）并入队 user_input_queue；memory 优先使用 content 字段，若无则回退读取 input_file。
 
 ## 开发环境
 
@@ -119,13 +140,14 @@ pip install -r requirements-dev.txt
 - ✅ 项目架构设计
 - ✅ 基础微服务框架
 - ✅ Redis 消息总线
-- ✅ 记忆管理模块
+- ✅ 记忆管理模块（B 模式：content 优先，fallback 到 input_file）
 - ✅ Web 管理界面
 - ✅ 测试框架
+- ✅ ASR → Input 归一化桥接（input-handler 订阅 asr_results → user_input_queue）
 
 进行中:
 - 🚧 各模块功能完善
-- 🚧 模块间通信优化
+- 🚧 模块间通信优化（结果持久化 + 查询接口、上传与统一转码）
 - 🚧 错误处理完善
 
 待开发:

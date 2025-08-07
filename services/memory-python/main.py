@@ -60,40 +60,61 @@ class MemoryService:
                 del self.processing_tasks[task_id]
     
     async def _process_text_input(self, task_id: str, task_data: dict, user_id: str):
-        """处理文本输入并存储到记忆"""
+        """处理文本输入并存储到记忆（B 模式：content 优先，fallback 到 input_file）"""
         try:
-            input_file = task_data["input_file"]
-            
-            # 读取输入文本
-            with open(input_file, "r", encoding="utf-8") as f:
-                input_text = f.read().strip()
-            
-            logger.info(f"Storing user text: {input_text[:50]}...")
-            
-            # 存储用户消息到记忆
+            input_text = None
+            # 1) 优先使用直接携带的 content
+            raw_content = task_data.get("content")
+            if isinstance(raw_content, str) and raw_content.strip():
+                input_text = raw_content.strip()
+                logger.info(f"Storing user text from content for task {task_id}: {input_text[:50]}...")
+            else:
+                # 2) 回退到读取 input_file
+                input_file = task_data.get("input_file")
+                if input_file:
+                    try:
+                        with open(input_file, "r", encoding="utf-8") as f:
+                            input_text = f.read().strip()
+                        logger.info(f"Storing user text from file for task {task_id}: {input_text[:50]}...")
+                    except FileNotFoundError:
+                        logger.error(f"Input file not found for task {task_id}: {input_file}")
+                    except Exception as fe:
+                        logger.error(f"Failed to read input_file for task {task_id}: {fe}")
+
+            if not input_text:
+                logger.warning(f"No valid text content for task {task_id}, skip storing")
+                return
+
+            # 3) 存储用户消息到记忆，透传 task_id 与可用元数据
+            metadata = {
+                "task_id": task_id,
+                "input_file": task_data.get("input_file"),
+                "source": task_data.get("source", "user"),
+                "trace_id": (task_data.get("meta") or {}).get("trace_id") if isinstance(task_data.get("meta"), dict) else None,
+                "lang": (task_data.get("meta") or {}).get("lang") if isinstance(task_data.get("meta"), dict) else None,
+            }
+
             message_id = await memory_manager.store_message(
                 user_id=user_id,
                 message_type="text",
                 content=input_text,
                 source="user",
                 require_ai_response=True,
-                metadata={"task_id": task_id, "input_file": input_file}
+                metadata=metadata,
             )
-            
+
             logger.info(f"Stored user message {message_id}")
             self.processing_tasks[task_id] = "completed"
-            
+
         except Exception as e:
             logger.error(f"Error processing text input: {e}")
     
     async def _process_audio_input(self, task_id: str, task_data: dict, user_id: str):
-        """处理音频输入并存储到记忆"""
+        """处理音频输入并存储到记忆（保留占位分支，ASR 接入由 input-handler 负责）"""
         try:
-            input_file = task_data["input_file"]
-            
-            logger.info(f"Storing user audio: {input_file}")
-            
-            # 存储音频消息到记忆（实际应该先做语音识别）
+            input_file = task_data.get("input_file")
+            logger.info(f"Storing user audio metadata for task {task_id}: {input_file}")
+
             message_id = await memory_manager.store_message(
                 user_id=user_id,
                 message_type="audio",
@@ -102,131 +123,41 @@ class MemoryService:
                 require_ai_response=True,
                 metadata={"task_id": task_id, "input_file": input_file, "audio_file": input_file}
             )
-            
+
             logger.info(f"Stored user audio message {message_id}")
             self.processing_tasks[task_id] = "completed"
-            
+
         except Exception as e:
             logger.error(f"Error processing audio input: {e}")
 
     async def _process_audio_input(self, task_id: str, task_data: dict, user_id: str):
-        """处理音频输入并存储到记忆"""
+        """处理音频输入（去除内置 ASR 调用，ASR → input-handler → user_input_queue）"""
         try:
-            input_file = task_data["input_file"]
-            logger.info(f"Processing user audio: {input_file}")
+            input_file = task_data.get("input_file")
+            logger.info(f"Processing user audio (metadata only) for task {task_id}: {input_file}")
 
-            #调用ASR模块进行语音识别
-            asr_text = await self._call_asr_service(input_file)
+            message_id = await memory_manager.store_message(
+                user_id=user_id,
+                message_type="audio_metadata",
+                content=f"[Audio file: {input_file}]",
+                source="user",
+                require_ai_response=False,
+                metadata={
+                    "task_id": task_id,
+                    "input_file": input_file,
+                    "audio_file": input_file,
+                    "asr_processed": False,
+                    "note": "ASR handled upstream by input-handler via asr_results"
+                }
+            )
+            logger.info(f"Stored audio metadata message {message_id}")
 
-            if asr_text:
-                # 存储识别出的文本到记忆
-                message_id = await memory_manager.store_message(
-                    user_id=user_id,
-                    message_type="text",
-                    content=asr_text,
-                    source="user",
-                    require_ai_response=True,
-                    metadata={"task_id": task_id, "input_file": input_file, "audio_file": input_file, "asr_processed": True}
-                )
-                logger.info(f"Stored ASR text from audio message {message_id}: {asr_text[:50]}...")
-
-            else:
-                # 如果ASR失败，存储音频元数据信息
-                message_id = await memory_manager.store_message(
-                    user_id=user_id,
-                    message_type="audio_metadata",
-                    content=f"[Audio recognition failed]",
-                    source="user",
-                    require_ai_response=False,
-                    metadata={
-                        "task_id": task_id, 
-                        "input_file": input_file, 
-                        "audio_file": input_file,
-                        "asr_processed": True,
-                        "asr_status": "failed",
-                        "error_message": "Asr processing failed"
-                    }
-                )
-                logger.warning(f"ASR failed for audio file {input_file}, stored metadata only for message {message_id}")
-            
-            self.processing_task[task_id] = "completed"
+            self.processing_tasks[task_id] = "completed"
 
         except Exception as e:
-            logger.error(f"Error processing audio input{e} ")
-            # 发生异常时的错误处理
-            try:
-                message_id = await memory_manager.store_message(
-                    user_id=user_id,
-                    message_type="audio_metadata",
-                    content="[Audio processing error]",
-                    source = "user",
-                    require_ai_response=False,
-                    metadata={
-                        "task_id": task_id,
-                        "input_file": task_data.get("input_file", "unknown"),
-                        "asr_status": "error",
-                        "error_message": str(e)
-                    }
-                )
-                logger.warning(f"Exception during audio processing, stored error metadata for message {message_id}")      
-            except Exception as store_error:
-                logger.error(f"Failed to store error information: {store_error}")
+            logger.error(f"Error processing audio input: {e}")
 
-    async def _call_asr_service(self, audio_file_path: str, max_retries: int = 2) -> Optional[str]:
-        """
-        调用ASR服务进行语音识别，带重试机制
-        """
-
-        for attempt in range(max_retries + 1):
-            try:
-                if not redis_client:
-                    logger.error("Redis client not available for ASR service call")
-                    return None
-                
-                # 创建ASR任务
-                asr_task_id = f"asr_{int(asyncio.get_event_loop().time() * 1000000)}_{attempt}"
-                asr_task_data = {
-                    "task_id": asr_task_id,
-                    "audio_file": audio_file_path,
-                    "timestamp": asyncio.get_event_loop().time(),
-                    "attempt" : attempt
-                }
-
-                # 发送到ASR处理队列
-                asr_queue_name = config.get("redis",{}).get("asr_queue", "asr_processing_queue") 
-                await redis_client.lpush(asr_queue_name, json.dumps(asr_task_data))
-
-                # 等待ASR结果（设置超时时间，例如30秒）
-                asr_result_channel = f"asr_result_{task_id}"
-                pubsub = redis_client.pubsub()
-                await pubsub.subscribe(asr_result_channel)
-                
-                try:
-                    # 使用asyncio.wait_for来设置超时
-                    async def wait_for_message():
-                        async for message in pubsub.listen():
-                            if message["type"] == "message":
-                                return json.loads(message["data"])
-                            
-                    result_data = await asyncio.wait_for(wait_for_message(), timeout=30.0)
-                    await pubsub.unsubscribe(asr_result_channel)
-
-                    if result_data.get("staus") == "success":
-                        return result_data.get("text")
-                    else:
-                        logger.error(f"ASR processing failed (attempt {attempt + 1}): {result_data.get('error')}")
-
-                except asyncio.TimeoutError:
-                    logger.error(f"ASR processing timeout for task {asr_task_id} (attempt {attempt + 1})")
-                    await pubsub.unsubscribe(asr_result_channel)
-
-            except Exception as e:
-                logger.error(f"Error calling ASR service (attempt {attempt + 1}): {e}")
-            finally:
-                try:
-                    await pubsub.close()
-                except:
-                    pass
+    # 删除内置 ASR 调用路径：由 input-handler 负责承接 asr_results 并转发为 text 任务
 
 
     async def store_ai_response(self, user_id: str, response_text: str, 

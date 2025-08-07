@@ -10,6 +10,7 @@ import redis.asyncio as redis
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 import uvicorn
+import os
 
 # 配置日志
 logging.basicConfig(
@@ -231,10 +232,79 @@ async def get():
             <li>输入端点: /ws/input</li>
             <li>支持格式: 文本、音频(WebM/Opus)</li>
             <li>Redis队列: user_input_queue</li>
+            <li>订阅: asr_results → 转发为 user_input_queue（content 模式）</li>
         </ul>
     </body>
     </html>
     """)
+
+async def asr_results_bridge():
+    """
+    订阅 ASR 结果频道 asr_results，将 finished 文本转为 user_input_queue 标准任务（content 优先）。
+    """
+    if not redis_client:
+        logger.error("Redis client not available for ASR bridge")
+        return
+
+    pubsub = redis_client.pubsub()
+    await pubsub.subscribe("asr_results")
+    logger.info("ASR bridge subscribed to channel: asr_results")
+
+    try:
+        async for message in pubsub.listen():
+            if message["type"] != "message":
+                continue
+            try:
+                data = json.loads(message["data"])
+            except json.JSONDecodeError:
+                logger.error("Invalid JSON in asr_results")
+                continue
+
+            status = data.get("status")
+            text = data.get("text")
+            if status != "finished" or not isinstance(text, str) or not text.strip():
+                # 跳过非完成或空文本
+                continue
+
+            task_id = data.get("task_id") or str(uuid.uuid4())
+            lang = data.get("lang")
+            meta = data.get("meta") or {}
+            user_id = meta.get("user_id", "anonymous")
+
+            unified = {
+                "task_id": task_id,
+                "type": "text",
+                "user_id": user_id,
+                "content": text.strip(),
+                "source": "asr",
+                "timestamp": asyncio.get_event_loop().time(),
+                "meta": {
+                    "lang": lang,
+                    "trace_id": meta.get("trace_id"),
+                    "from_channel": "asr_results",
+                    "provider": data.get("provider"),
+                },
+            }
+
+            try:
+                await redis_client.lpush("user_input_queue", json.dumps(unified, ensure_ascii=False))
+                logger.info(f"Bridged ASR result to user_input_queue, task_id={task_id}, len(text)={len(unified['content'])}")
+            except Exception as e:
+                logger.error(f"Failed to push unified task to user_input_queue: {e}")
+
+    except Exception as e:
+        logger.error(f"ASR bridge error: {e}")
+    finally:
+        try:
+            await pubsub.unsubscribe("asr_results")
+            await pubsub.close()
+        except Exception:
+            pass
+
+@app.on_event("startup")
+async def startup_tasks():
+    # 启动 ASR → Input 的桥接协程
+    asyncio.create_task(asr_results_bridge())
 
 if __name__ == "__main__":
     uvicorn.run(

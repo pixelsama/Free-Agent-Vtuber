@@ -19,6 +19,7 @@
     * [开发环境](#开发环境)
     * [运行测试](#运行测试)
 5.  [开发路线图](#开发路线图)
+6.  [系统消息流与契约](#系统消息流与契约)
 6.  [参与贡献](#参与贡献)
 7.  [许可证](#许可证)
 
@@ -61,6 +62,47 @@
 
 ### 测试框架
 * **测试框架**: [pytest](https://pytest.org/) + pytest-asyncio (支持异步测试)
+
+## 系统消息流与契约
+
+本项目采用 Redis 作为消息总线，服务通过队列（list）与频道（pub/sub）通信。自 2025-08 更新起，输入归一化统一由 input-handler 承担，并采用“B 模式：content 优先”。
+
+- 端到端数据流（语音→文本→对话→TTS）
+  1) 外部调用网关：POST /api/asr → 入队 asr_tasks（list）
+  2) ASR 服务识别：消费 asr_tasks → 发布识别结果到 asr_results（pub/sub）
+  3) 输入归一化：input-handler 订阅 asr_results，将 status=finished 的文本转为标准“用户输入任务”，LPUSH 到 user_input_queue（list）
+  4) 记忆：memory 消费 user_input_queue，现已“优先使用 task_data.content，若无则回退读取 input_file”，成功后发布 memory_updates（pub/sub）
+  5) 对话：chat-ai 订阅 memory_updates，生成回复，发布 ai_responses，同时 LPUSH tts_requests（list）
+  6) 语音合成与输出：tts 消费 tts_requests，合成后发布到 task_response:{task_id}（pub/sub），output/gateway 呈现
+
+- 关键通道与契约（摘录）
+  - asr_results（频道，ASR → 全局）
+    ResultMessage（简化）：{ task_id, status: "finished"|"failed"|"partial", text?, provider?, lang?, meta? }
+    约束：status="finished" 时必须含 text；status="failed" 必须含 error
+  - user_input_queue（队列，input-handler → memory）
+    标准任务（content 优先）：
+    {
+      "task_id": "沿用上游，如 ASR task_id",
+      "type": "text" | "audio",
+      "user_id": "anonymous",
+      "content": "识别文本（推荐）",
+      "input_file": "/path/to/file (可选兜底)",
+      "source": "asr" | "user" | "system",
+      "timestamp": 1234567890,
+      "meta": { "trace_id": "...", "lang": "zh", "from_channel": "asr_results", "provider": "fake|openai_whisper|funasr_local" }
+    }
+    行为：memory 现已优先读取 content；当 content 为空或不存在时，回退读取 input_file。
+  - 其他：memory_updates（channel）、ai_responses（channel）、tts_requests（list）、task_response:{task_id}（channel）
+
+- 启动顺序建议与验证
+  1) Redis → gateway → asr → input-handler（启动时日志应出现“ASR bridge subscribed to channel: asr_results”）→ memory → chat-ai → tts → output
+  2) curl /api/asr 发送任务，观察：
+     - asr_results 有 finished 文本
+     - input-handler 日志出现 Bridged ASR result to user_input_queue
+     - memory 日志出现 Storing user text from content...
+     - chat-ai/tts/output 按既有链路输出
+
+注：后续将引入“结果持久化 + 查询接口”（GET /api/asr/{task_id}）和“上传/统一转码”能力，详见 docs/ 与模块 README。
 
 ## 快速开始 🚀
 
