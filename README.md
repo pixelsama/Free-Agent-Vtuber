@@ -414,14 +414,22 @@ services/
 └── ...                       # 其他服务独立环境
 ```
 
-**开发环境** - 统一开发测试：
-```bash
-# 1. 创建开发环境（项目根目录）
-python3 -m venv dev-venv
-source dev-venv/bin/activate
+**开发环境** - 各服务独立开发：
+每个服务模块都有自己的开发环境，可以独立进行开发和测试。要开发特定服务，请进入该服务目录并创建虚拟环境：
 
-# 2. 安装开发依赖（包含所有服务依赖 + 测试工具）
-pip install -r requirements-dev.txt
+```bash
+# 进入特定服务目录
+cd services/chat-ai-python
+
+# 创建并激活虚拟环境
+python3 -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# 安装服务依赖
+pip install -r requirements.txt
+
+# 如果需要运行测试，安装开发依赖
+pip install -r ../../requirements-dev.txt
 ```
 
 #### 前端开发环境
@@ -460,43 +468,47 @@ front_end/
 
 ### 运行测试
 
-我们使用 pytest 进行单元测试和集成测试：
+每个服务模块都有独立的测试套件，使用 pytest 进行单元测试和集成测试：
 
 ```bash
-# 激活开发环境
-source dev-venv/bin/activate
+# 进入特定服务目录
+cd services/chat-ai-python
 
-# 运行所有测试
-pytest tests/ -v
+# 运行该服务的所有测试
+pytest
 
-# 运行特定模块测试
-pytest tests/unit/test_memory_manager.py -v
+# 运行特定类型的测试
+pytest tests/unit/
+pytest tests/integration/
+
+# 运行特定测试文件
+pytest tests/unit/test_ai_processor.py
 
 # 运行测试并查看覆盖率
-pytest tests/ --cov=services --cov-report=html
+pytest --cov=. --cov-report=html
 
 # 运行集成测试（需要Redis运行）
 pytest tests/integration/ -v
 ```
 
-**测试结构**：
+**测试结构**（以 chat-ai-python 为例）：
 ```
-tests/
+services/chat-ai-python/tests/
 ├── unit/                     # 单元测试（使用模拟对象）
-│   └── test_memory_manager.py
+│   ├── test_ai_processor.py
+│   ├── test_task_processor.py
+│   └── test_config.py
 ├── integration/              # 集成测试（需要真实Redis）
-│   └── test_redis_flow.py
-├── fixtures/                 # 测试数据
-│   └── sample_messages.json
+│   └── test_redis_integration.py
 └── conftest.py              # pytest配置
 ```
 
 测试覆盖了：
-- ✅ 记忆管理模块的核心逻辑
+- ✅ 各服务模块的核心逻辑
 - ✅ Redis数据存储和检索
 - ✅ 消息序列化/反序列化
 - ✅ 错误处理和边界情况
-- 🚧 更多服务模块测试开发中...
+- 🚧 更多服务模块测试持续开发中...
 
 ## 开发路线图
 
