@@ -1,0 +1,98 @@
+# 工作流的名称
+name: CI for Microservices
+
+# 触发工作流的事件
+on:
+  # 当有代码推送到 main 分支时触发
+  push:
+    branches: [ "main" ]
+  # 当有针对 main 分支的拉取请求（Pull Request）时触发
+  pull_request:
+    branches: [ "main" ]
+
+# 定义工作流中的所有任务
+jobs:
+  # 启动 Redis 服务
+  start-redis:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:latest
+        ports:
+          - 6379:6379
+    steps:
+      - name: Ping Redis
+        run: |
+          sudo apt-get install -y redis-tools
+          redis-cli ping
+
+  # 我们定义一个名为 test-services 的任务
+  test-services:
+    # 指定任务运行在最新的 Ubuntu 环境中
+    runs-on: ubuntu-latest
+    needs: start-redis
+
+    # --- 这里是关键：使用矩阵策略 ---
+    strategy:
+      # fail-fast: false 表示即使一个微服务的测试失败了，其他微服务的测试也会继续进行
+      fail-fast: false
+      matrix:
+        # 定义一个名为 service 的变量，下面列出了它所有可能的值
+        # 您可以在这里添加或删除您的微服务目录名
+        service:
+          - asr-python
+          - chat-ai-python
+          - gateway-python
+          - tts-python
+          - memory-python
+          - input-handler-python
+          - output-handler-python
+          # 如果未来有新的服务，比如 'new-service-python'，直接在这里加一行即可
+          # - new-service-python
+
+    # 任务的执行步骤
+    steps:
+      # 第1步：检出（下载）您的代码库到运行器中
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 第2步：根据不同的服务设置 Python 环境
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12' # 您可以根据需要修改 Python 版本
+
+      # 第3步：安装依赖
+      # ${{ matrix.service }} 会自动被替换成上面 matrix 中定义的服务名称
+      - name: Install dependencies for ${{ matrix.service }}
+        run: |
+          # 首先进入对应的微服务目录
+          cd ${{ matrix.service }}
+          # 安装该目录下的依赖
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          # 安装测试专用的依赖，比如 pytest 和 flake8
+          pip install pytest flake8
+          # 为需要 Redis 的服务安装 redis 依赖
+          if [ "${{ matrix.service }}" = "memory-python" ] || [ "${{ matrix.service }}" = "input-handler-python" ] || [ "${{ matrix.service }}" = "output-handler-python" ]; then
+            pip install redis
+          fi
+
+      # 第4步：运行代码风格检查 (Linting)
+      - name: Lint with flake8 for ${{ matrix.service }}
+        run: |
+          # 进入对应的微服务目录
+          cd ${{ matrix.service }}
+          # 运行 flake8 对当前目录进行检查
+          # --count 会在发现问题时显示统计并以失败状态退出
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      # 第5步：运行单元测试
+      - name: Run tests with pytest for ${{ matrix.service }}
+        run: |
+          # 进入对应的微服务目录
+          cd ${{ matrix.service }}
+          # 为测试设置 Redis 环境变量
+          export REDIS_URL=redis://localhost:6379
+          # 运行 pytest
+          pytest
