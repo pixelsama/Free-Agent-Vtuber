@@ -20,6 +20,21 @@ services:
 
 
 
+  # ASR语音识别服务
+  asr:
+    build:
+      context: ./services/asr-python
+      dockerfile: Dockerfile
+    container_name: aivtuber-asr
+    environment:
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+
   # AI聊天服务
   chat-ai:
     build:

@@ -6,7 +6,7 @@ from typing import Dict
 
 import websockets
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from .asr_routes import bp_asr as _flask_bp  # type: ignore
+from asr_routes import bp_asr as _flask_bp  # type: ignore
 from fastapi.middleware.wsgi import WSGIMiddleware
 from flask import Flask as _Flask  # shim for mounting Flask blueprint
 from fastapi.middleware.cors import CORSMiddleware

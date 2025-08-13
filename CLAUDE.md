@@ -2,183 +2,173 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
-
-Free-Agent-Vtuber is an event-driven, extensible AI virtual streamer project built with a microservices architecture. The system uses Redis as a message bus for communication between services, allowing for polyglot development (services can be written in any language that can interact with Redis).
-
-### Key Features
-- Event-driven microservices architecture with Redis message bus
-- Real-time voice-to-text-to-AI-to-speech processing pipeline
-- Live2D virtual character integration
-- Modular design allowing independent service development
-- WebSocket-based real-time communication with frontend
-
 ## Architecture Overview
 
-### Core Services
-1. **gateway-python** - API gateway routing WebSocket connections to backend services
-2. **input-handler-python** - Processes user inputs (text/audio) and forwards to Redis queue
-3. **asr-python** - Automatic Speech Recognition service handling voice-to-text conversion
-4. **memory-python** - Manages conversation history and context
-5. **chat-ai-python** - AI chat processing service generating responses
-6. **tts-python** - Text-to-Speech service converting text to audio
-7. **output-handler-python** - Sends processed results back to frontend via WebSocket
+This is a Free-Agent-Vtuber project built with a **microservices event-driven architecture** using Redis as the central message bus. All services communicate through Redis queues (lists) and channels (pub/sub), making the system highly decoupled and scalable.
 
-### Communication Flow
-1. Frontend connects to gateway via WebSocket
-2. User input (text/audio) sent to input-handler service
-3. Input-handler processes data and sends to Redis queue (user_input_queue)
-4. Memory service consumes queue, stores context, and publishes updates
-5. Chat-AI service listens for memory updates and generates responses
-6. TTS service converts text responses to audio
-7. Output-handler sends final results back to frontend
+### Core Architecture Pattern
+- **Event-Driven**: Services communicate through Redis message bus
+- **Polyglot**: Supports multiple programming languages (currently Python + Vue.js)
+- **Decoupled**: Services are independent and can be developed/deployed separately
+- **Scalable**: New functionality can be added as separate microservices
 
-### Message Channels
-- `user_input_queue` - Main input processing queue
-- `memory_updates` - Memory service publishes context updates
-- `ai_responses` - AI service publishes generated responses
-- `tts_requests` - TTS service consumption queue
-- `task_response:{task_id}` - Per-task response channels
-- `asr_tasks`/`asr_results` - ASR processing queues
+### Message Flow (Critical Understanding)
+1. **Input Flow**: External → Gateway → ASR → input-handler → user_input_queue
+2. **Processing**: memory consumes user_input_queue → memory_updates → chat-ai → ai_responses + tts_requests
+3. **Output Flow**: tts consumes tts_requests → task_response channels → output/gateway
 
-## Development Environment
+The system uses "B模式：content优先" where services prioritize reading `task_data.content` over `input_file`.
 
-### Prerequisites
-- Python 3.10+
-- Node.js 16+
-- Redis Server
-- Docker & Docker Compose (for containerized deployment)
+## Development Commands
 
-### Setup
+### Frontend (Vue.js + Vite + Live2D)
 ```bash
-# Clone repository
-git clone <repository-url>
-cd Free-Agent-Vtuber
-
-# For Docker deployment (recommended):
-cp .env.example .env
-# Edit .env to set OPENAI_API_KEY
-chmod +x ./deploy.sh
-./deploy.sh  # Linux/macOS
-# or
-deploy.bat   # Windows
-
-# For local development:
-# 1. Start Redis server
-redis-server
-
-# 2. Set environment variables
-export OPENAI_API_KEY=your_api_key_here
-
-# 3. Start manager service
-cd manager
-pip install -r requirements.txt
-python app.py
-
-# 4. In new terminal, start frontend
 cd front_end
-npm install
-npm run dev
-
-# 5. Start individual backend services as needed
-# Each service runs independently and connects to Redis
+npm install              # Install dependencies
+npm run dev             # Start development server (http://localhost:5173)
+npm run build           # Build for production
+npm run preview         # Preview production build
 ```
 
-### Development Setup
-```bash
-# Frontend development
-cd front_end
-npm install
-npm run dev     # Development server
-npm run build   # Production build
-```
-
-For backend service development, each service can be developed independently with its own virtual environment and dependencies.
-
-## Testing
-
-Each service has its own independent test suite located in the `tests/` directory within that service. Tests are organized into unit tests and integration tests.
+### Backend Services (Python microservices)
+Each service in `services/` directory has independent environment:
 
 ```bash
-# Navigate to a specific service directory
-cd services/chat-ai-python
-
-# Run all tests for that service
-pytest
-
-# Run specific test types
-pytest tests/unit/
-pytest tests/integration/
-
-# Run specific test files
-pytest tests/unit/test_ai_processor.py
-
-# Run with verbose output
-pytest -v
-
-# Run with coverage report
-pytest --cov=. --cov-report=html
-```
-
-### Test Structure
-- `tests/unit/` - Unit tests for individual components
-- `tests/integration/` - Integration tests requiring external services (Redis)
-- `conftest.py` - Shared fixtures and configurations
-
-### Requirements
-- Redis server running locally for integration tests
-- Service-specific dependencies installed via requirements.txt
-
-## Service Development
-
-Each service is developed and run independently:
-1. Each service has its own directory under `services/`
-2. Each service has its own virtual environment and dependencies
-3. Services communicate via Redis queues and pub/sub channels
-4. Configuration is managed through individual `config.json` files
-5. Each service includes its own test suite in a `tests/` directory
-
-### Adding New Services
-1. Create new directory in services/
-2. Implement main.py with Redis connection and processing logic
-3. Add requirements.txt for dependencies
-4. Create config.json for configuration
-5. Add Dockerfile for containerization
-6. Create tests/ directory with unit and integration tests
-7. Update docker-compose.yml to include service
-
-### Service Communication Contracts
-Services communicate through well-defined JSON message formats on Redis queues/channels. Each service is responsible for specific processing steps in the pipeline.
-
-## Common Development Tasks
-
-### Running Individual Services
-```bash
-# Navigate to the specific service directory
-cd services/chat-ai-python
-
-# Create and activate virtual environment
+# For any service (e.g., chat-ai-python, memory-python, etc.)
+cd services/[service-name]
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# Install service dependencies
 pip install -r requirements.txt
-
-# Run the service
-python main.py
+python main.py           # Start the service
 ```
 
-Each service can be run independently and communicates with other services through Redis.
+### Testing
+```bash
+# Root level - install dev dependencies for testing
+pip install -r requirements-dev.txt
 
-### Debugging Message Flow
-1. Check service logs through manager UI or direct console output
-2. Monitor Redis channels using redis-cli:
-   ```bash
-   redis-cli
-   SUBSCRIBE task_response:your-task-id
-   ```
+# Service level testing
+cd services/[service-name]
+pytest                   # Run all tests
+pytest tests/unit/       # Unit tests only
+pytest tests/integration/ # Integration tests (requires Redis)
+pytest --cov=. --cov-report=html  # With coverage
+```
 
-### Testing WebSocket Connections
-Use wscat or browser developer tools to test WebSocket endpoints:
-- Input: ws://localhost:8000/ws/input
-- Output: ws://localhost:8000/ws/output/{task_id}
+### Docker Deployment
+```bash
+# Production deployment
+docker-compose up -d
+docker-compose ps        # Check status
+docker-compose logs -f   # View logs
+
+# Development with hot reload
+docker-compose -f docker-compose.dev.yml up -d
+
+# Stop services
+docker-compose down
+```
+
+### Local Management (Alternative to Docker)
+```bash
+cd manager
+pip install -r requirements.txt
+python app.py           # Starts Flask manager at http://localhost:5000
+```
+
+### Code Quality Tools
+```bash
+# Available in requirements-dev.txt
+black .                 # Code formatting
+isort .                 # Import sorting  
+flake8 .               # Code linting
+mypy .                 # Type checking
+```
+
+## Key Service Contracts
+
+### Redis Message Channels/Queues
+- `asr_tasks` (list): Audio recognition tasks
+- `asr_results` (pub/sub): ASR recognition results
+- `user_input_queue` (list): Standardized user input tasks
+- `memory_updates` (pub/sub): Memory storage notifications
+- `ai_responses` (pub/sub): AI chat responses
+- `tts_requests` (list): Text-to-speech synthesis tasks
+- `task_response:{task_id}` (pub/sub): Individual task responses
+
+### Standard Task Format (user_input_queue)
+```json
+{
+  "task_id": "inherited_from_upstream",
+  "type": "text|audio",
+  "user_id": "anonymous",
+  "content": "recognized_text_preferred",
+  "input_file": "/path/to/file_fallback",
+  "source": "asr|user|system",
+  "timestamp": 1234567890,
+  "meta": {
+    "trace_id": "...",
+    "lang": "zh",
+    "from_channel": "asr_results",
+    "provider": "fake|openai_whisper|funasr_local"
+  }
+}
+```
+
+## Service Architecture
+
+### Core Services
+- **gateway-python**: HTTP/WebSocket API gateway (port 8000)
+- **asr-python**: Automatic Speech Recognition (supports fake/OpenAI/FunASR)
+- **input-handler-python**: Bridges ASR results to standardized input queue
+- **memory-python**: User conversation memory management
+- **chat-ai-python**: AI conversation processing (OpenAI-compatible APIs)
+- **tts-python**: Text-to-speech synthesis (Edge-TTS, OpenAI TTS)
+- **output-handler-python**: Response output handling
+
+### Frontend & Management
+- **front_end/**: Vue.js + Vuetify + Live2D virtual character interface
+- **manager/**: Flask-based local development service manager
+
+### Configuration
+- Each service has `config.json` for service-specific settings
+- Environment variables override config values (e.g., `OPENAI_API_KEY`)
+- Redis connection configurable via `REDIS_HOST`/`REDIS_PORT`
+
+## Development Guidelines
+
+### Service Startup Order (Important)
+1. Redis
+2. gateway  
+3. asr
+4. input-handler (should log "ASR bridge subscribed to channel: asr_results")
+5. memory
+6. chat-ai
+7. tts
+8. output
+
+### Testing Service Integration
+```bash
+# Test end-to-end flow
+curl -X POST http://localhost:8000/api/asr -F "audio_file=@test.wav"
+# Should trigger: asr_results → input-handler → memory → chat-ai → tts → output
+```
+
+### Adding New Services
+1. Create new directory in `services/`
+2. Add `Dockerfile`, `requirements.txt`, `config.json`, `main.py`
+3. Update `docker-compose.yml` if using Docker deployment
+4. Follow Redis pub/sub or queue patterns for communication
+5. Add corresponding tests in `tests/` directory
+
+### Configuration Priority
+1. Environment variables (highest)
+2. `config.json` files
+3. Default values (lowest)
+
+## Important Files
+- `docker-compose.yml`: Production container orchestration
+- `requirements-dev.txt`: Shared development and testing dependencies  
+- `front_end/vite.config.js`: Frontend build configuration
+- `services/*/config.json`: Individual service configurations
+- `services/*/pytest.ini`: Test configuration (where present)
