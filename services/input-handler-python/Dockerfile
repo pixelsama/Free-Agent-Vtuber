@@ -16,9 +16,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 复制应用代码
 COPY . .
 
-# 创建非root用户
+# 创建非root用户和共享目录
 RUN useradd --create-home --shell /bin/bash app \
-    && chown -R app:app /app
+    && mkdir -p /tmp/aivtuber_tasks \
+    && chown -R app:app /app /tmp/aivtuber_tasks
 USER app
 
 # 健康检查
