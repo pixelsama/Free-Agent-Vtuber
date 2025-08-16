@@ -77,6 +77,8 @@ services:
     environment:
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
+    volumes:
+      - temp_files:/tmp/aivtuber_tasks
     restart: unless-stopped
     depends_on:
       redis:
@@ -108,6 +110,8 @@ services:
     environment:
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
+    volumes:
+      - temp_files:/tmp/aivtuber_tasks
     restart: unless-stopped
     depends_on:
       redis:
@@ -122,6 +126,8 @@ services:
     environment:
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
+    volumes:
+      - temp_files:/tmp/aivtuber_tasks
     restart: unless-stopped
     depends_on:
       redis:
@@ -130,6 +136,7 @@ services:
 volumes:
   redis_data:
   memory_data:
+  temp_files:
 
 networks:
   default:
