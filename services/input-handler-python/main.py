@@ -153,6 +153,7 @@ class InputHandler:
             task_dir = TEMP_DIR / task_id
             task_dir.mkdir(exist_ok=True)
             
+            content = None
             if data_type == "text":
                 content = combined_data.decode('utf-8')
                 input_file = task_dir / "input.txt"
@@ -175,7 +176,7 @@ class InputHandler:
             }))
             
             # 通过Redis发送任务到处理队列
-            await self._send_to_redis_queue(task_id, data_type, input_file)
+            await self._send_to_redis_queue(task_id, data_type, input_file, content)
                 
         except Exception as e:
             logger.error(f"Error processing upload for task {task_id}: {e}")
@@ -186,19 +187,31 @@ class InputHandler:
                 "error": str(e)
             }))
     
-    async def _send_to_redis_queue(self, task_id: str, data_type: str, input_file: Path):
+    async def _send_to_redis_queue(self, task_id: str, data_type: str, input_file: Path, content: str = None):
         if redis_client:
             try:
+                # 构造标准化任务消息（B模式：content优先）
                 message = {
                     "task_id": task_id,
                     "type": data_type,
+                    "user_id": "anonymous",
                     "input_file": str(input_file),
-                    "timestamp": asyncio.get_event_loop().time()
+                    "source": "user",
+                    "timestamp": asyncio.get_event_loop().time(),
+                    "meta": {
+                        "trace_id": None,
+                        "from_channel": "input_handler",
+                        "provider": "direct_upload"
+                    }
                 }
                 
+                # B模式：优先传递content，input_file作为后备
+                if content is not None:
+                    message["content"] = content
+                
                 # 发送到Redis队列，由AI处理模块消费
-                await redis_client.lpush("user_input_queue", json.dumps(message))
-                logger.info(f"Sent task {task_id} to Redis queue: {data_type}")
+                await redis_client.lpush("user_input_queue", json.dumps(message, ensure_ascii=False))
+                logger.info(f"Sent task {task_id} to Redis queue: {data_type}, content_length: {len(content) if content else 0}")
                 
             except Exception as e:
                 logger.error(f"Failed to send task to Redis: {e}")
