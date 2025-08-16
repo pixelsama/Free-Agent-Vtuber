@@ -17,20 +17,45 @@ jobs:
     runs-on: ubuntu-latest
     services:
       redis:
-        image: redis:latest
+        image: redis:7-alpine
         ports:
           - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
-      - name: Ping Redis
+      - name: Wait for Redis
         run: |
-          sudo apt-get install -y redis-tools
-          redis-cli ping
+          sudo apt-get update && sudo apt-get install -y redis-tools
+          # 等待 Redis 完全启动
+          for i in {1..30}; do
+            if redis-cli -h localhost -p 6379 ping; then
+              echo "Redis is ready!"
+              break
+            fi
+            echo "Waiting for Redis... ($i/30)"
+            sleep 2
+          done
 
   # 我们定义一个名为 test-services 的任务
   test-services:
     # 指定任务运行在最新的 Ubuntu 环境中
     runs-on: ubuntu-latest
     needs: start-redis
+    
+    # 为测试作业添加 Redis 服务
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     # --- 这里是关键：使用矩阵策略 ---
     strategy:
@@ -62,27 +87,41 @@ jobs:
         with:
           python-version: '3.12' # 您可以根据需要修改 Python 版本
 
+      # 第2.5步：验证 Redis 服务可用
+      - name: Verify Redis connection
+        run: |
+          sudo apt-get update && sudo apt-get install -y redis-tools
+          redis-cli -h localhost -p 6379 ping
+
       # 第3步：安装依赖
       # ${{ matrix.service }} 会自动被替换成上面 matrix 中定义的服务名称
       - name: Install dependencies for ${{ matrix.service }}
         run: |
           # 首先进入对应的微服务目录
-          cd ${{ matrix.service }}
+          cd services/${{ matrix.service }}
           # 安装该目录下的依赖
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           # 安装测试专用的依赖，比如 pytest 和 flake8
           pip install pytest flake8
-          # 为需要 Redis 的服务安装 redis 依赖
-          if [ "${{ matrix.service }}" = "memory-python" ] || [ "${{ matrix.service }}" = "input-handler-python" ] || [ "${{ matrix.service }}" = "output-handler-python" ]; then
+          # 为所有需要 Redis 的服务确保安装 redis 依赖
+          if [ "${{ matrix.service }}" = "asr-python" ] || [ "${{ matrix.service }}" = "chat-ai-python" ] || [ "${{ matrix.service }}" = "gateway-python" ] || [ "${{ matrix.service }}" = "tts-python" ] || [ "${{ matrix.service }}" = "memory-python" ] || [ "${{ matrix.service }}" = "input-handler-python" ] || [ "${{ matrix.service }}" = "output-handler-python" ]; then
             pip install redis
+          fi
+          # 为 gateway 服务安装额外的 Flask 依赖（如果 requirements.txt 中没有）
+          if [ "${{ matrix.service }}" = "gateway-python" ]; then
+            pip install Flask Werkzeug
+          fi
+          # 为 ASR 服务安装音频处理依赖
+          if [ "${{ matrix.service }}" = "asr-python" ]; then
+            sudo apt-get update && sudo apt-get install -y libasound2-dev libsndfile1-dev ffmpeg
           fi
 
       # 第4步：运行代码风格检查 (Linting)
       - name: Lint with flake8 for ${{ matrix.service }}
         run: |
           # 进入对应的微服务目录
-          cd ${{ matrix.service }}
+          cd services/${{ matrix.service }}
           # 运行 flake8 对当前目录进行检查
           # --count 会在发现问题时显示统计并以失败状态退出
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
@@ -91,8 +130,14 @@ jobs:
       - name: Run tests with pytest for ${{ matrix.service }}
         run: |
           # 进入对应的微服务目录
-          cd ${{ matrix.service }}
+          cd services/${{ matrix.service }}
           # 为测试设置 Redis 环境变量
           export REDIS_URL=redis://localhost:6379
-          # 运行 pytest
-          pytest
+          export REDIS_HOST=localhost
+          export REDIS_PORT=6379
+          # 检查是否有测试文件存在再运行
+          if [ -d "tests" ] || [ -f "test_*.py" ] || [ -f "*_test.py" ]; then
+            pytest -v
+          else
+            echo "No tests found for ${{ matrix.service }}, skipping test execution"
+          fi

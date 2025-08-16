@@ -2,14 +2,16 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# 安装系统依赖 (ASR 可能需要音频处理库)
+# 安装系统依赖 (编译和基础音频库)
 RUN apt-get update && apt-get install -y \
+    --no-install-recommends \
+    build-essential \
     gcc \
     g++ \
     libasound2-dev \
     libsndfile1-dev \
-    ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
 # 复制requirements文件
 COPY requirements.txt .
