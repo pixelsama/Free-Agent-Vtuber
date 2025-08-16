@@ -24,8 +24,8 @@
       
       "ai_config": {
         "provider": "openai_compatible",
-        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
-        "model": "gemini-2.5-flash",
+        "base_url": "https://ark.cn-beijing.volces.com/api/v3/",
+        "model": "doubao-seed-1-6-250615",
         "api_key": "",
         "timeout": 60,
         "max_retries": 3,
