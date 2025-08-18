@@ -58,16 +58,43 @@ pytest --cov=. --cov-report=html  # With coverage
 ### Docker Deployment
 ```bash
 # Production deployment
-docker-compose up -d
-docker-compose ps        # Check status
-docker-compose logs -f   # View logs
+docker compose up -d
+docker compose ps        # Check status
+docker compose logs -f   # View logs
 
 # Development with hot reload
-docker-compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.dev.yml up -d
 
 # Stop services
-docker-compose down
+docker compose down
 ```
+
+### Docker Container Updates
+When making code changes, use these commands to update containers:
+
+```bash
+# RECOMMENDED: Standard rebuild and restart
+docker compose up -d --build [service-name]
+
+# Restart without rebuild (for config-only changes)
+docker compose restart [service-name]
+
+# Full rebuild all services
+docker compose up -d --build
+
+# For troubleshooting: Force no-cache rebuild (rare cases)
+docker compose build --no-cache [service-name]
+docker compose up -d [service-name]
+
+# Check if changes are applied
+docker compose logs --tail=10 [service-name]
+```
+
+**Notes:**
+- Always use `docker compose` (V2) instead of `docker-compose` (V1)
+- Docker's cache is reliable - `--build` detects code changes correctly
+- Only use `--no-cache` for troubleshooting rare caching issues
+- Monitor logs to verify services are running correctly
 
 ### Local Management (Alternative to Docker)
 ```bash

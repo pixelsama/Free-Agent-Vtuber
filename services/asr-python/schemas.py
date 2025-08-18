@@ -60,7 +60,7 @@ class AppConfig(BaseModel):
 class AudioMessage(BaseModel):
     type: Literal["file"] = "file"
     path: str
-    format: Literal["wav", "pcm_s16le", "mp3"] = "wav"
+    format: Literal["wav", "pcm_s16le", "mp3", "webm"] = "wav"
     sample_rate: int = Field(default=16000, ge=8000, le=48000)
     channels: int = Field(default=1, ge=1, le=2)
 

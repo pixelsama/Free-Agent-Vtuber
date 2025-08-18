@@ -190,28 +190,67 @@ class InputHandler:
     async def _send_to_redis_queue(self, task_id: str, data_type: str, input_file: Path, content: str = None):
         if redis_client:
             try:
-                # 构造标准化任务消息（B模式：content优先）
-                message = {
-                    "task_id": task_id,
-                    "type": data_type,
-                    "user_id": "anonymous",
-                    "input_file": str(input_file),
-                    "source": "user",
-                    "timestamp": asyncio.get_event_loop().time(),
-                    "meta": {
-                        "trace_id": None,
-                        "from_channel": "input_handler",
-                        "provider": "direct_upload"
+                logger.info(f"DEBUG: Processing task {task_id}, data_type='{data_type}', content={content is not None}")
+                if data_type == "audio":
+                    logger.info(f"DEBUG: Routing audio task {task_id} to ASR service")
+                    # 音频任务：发送到ASR服务进行语音识别
+                    # 根据文件扩展名确定格式
+                    file_ext = input_file.suffix.lower()
+                    if file_ext == ".webm":
+                        audio_format = "webm"
+                    elif file_ext == ".mp3":
+                        audio_format = "mp3"
+                    elif file_ext == ".wav":
+                        audio_format = "wav"
+                    else:
+                        audio_format = "wav"  # 默认
+                    
+                    asr_message = {
+                        "task_id": task_id,
+                        "audio": {
+                            "type": "file",
+                            "path": str(input_file),
+                            "format": audio_format,
+                            "sample_rate": 16000,
+                            "channels": 1
+                        },
+                        "options": {
+                            "lang": "zh",
+                            "timestamps": True,
+                            "diarization": False
+                        },
+                        "meta": {
+                            "source": "user",
+                            "trace_id": None
+                        }
                     }
-                }
-                
-                # B模式：优先传递content，input_file作为后备
-                if content is not None:
-                    message["content"] = content
-                
-                # 发送到Redis队列，由AI处理模块消费
-                await redis_client.lpush("user_input_queue", json.dumps(message, ensure_ascii=False))
-                logger.info(f"Sent task {task_id} to Redis queue: {data_type}, content_length: {len(content) if content else 0}")
+                    await redis_client.lpush("asr_tasks", json.dumps(asr_message, ensure_ascii=False))
+                    logger.info(f"Sent audio task {task_id} to ASR queue for recognition")
+                    
+                else:
+                    logger.info(f"DEBUG: Routing text task {task_id} to user input queue")
+                    # 文本任务：构造标准化任务消息（B模式：content优先）
+                    message = {
+                        "task_id": task_id,
+                        "type": data_type,
+                        "user_id": "anonymous",
+                        "input_file": str(input_file),
+                        "source": "user",
+                        "timestamp": asyncio.get_event_loop().time(),
+                        "meta": {
+                            "trace_id": None,
+                            "from_channel": "input_handler",
+                            "provider": "direct_upload"
+                        }
+                    }
+                    
+                    # B模式：优先传递content，input_file作为后备
+                    if content is not None:
+                        message["content"] = content
+                    
+                    # 文本直接发送到用户输入队列
+                    await redis_client.lpush("user_input_queue", json.dumps(message, ensure_ascii=False))
+                    logger.info(f"Sent text task {task_id} to user input queue: content_length: {len(content) if content else 0}")
                 
             except Exception as e:
                 logger.error(f"Failed to send task to Redis: {e}")
