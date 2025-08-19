@@ -62,7 +62,7 @@ docker compose up -d
 docker compose ps        # Check status
 docker compose logs -f   # View logs
 
-# Development with hot reload
+# Development with hot reload (automatically detects code changes)
 docker compose -f docker-compose.dev.yml up -d
 
 # Stop services
@@ -193,8 +193,73 @@ curl -X POST http://localhost:8000/api/asr -F "audio_file=@test.wav"
 2. `config.json` files
 3. Default values (lowest)
 
+## Hot Reload Development Environment
+
+### Overview
+The project supports **automatic hot reload** for pure Python microservices during development. When you modify code, the affected service automatically restarts without requiring container rebuilds.
+
+### Hot Reload Architecture
+- **Framework Services** (with native hot reload):
+  - `gateway-python`: FastAPI (uvicorn reload=True) + Flask (FLASK_DEBUG=1)
+  - `input-handler-python`: FastAPI (uvicorn reload=True) 
+  - `output-handler-python`: FastAPI (uvicorn reload=True)
+
+- **Pure Python Services** (custom hot reload):
+  - `asr-python`: Uses watchdog-based hot reload
+  - `chat-ai-python`: Uses watchdog-based hot reload
+  - `memory-python`: Uses watchdog-based hot reload  
+  - `tts-python`: Uses watchdog-based hot reload
+
+### Hot Reload Features
+- **File Monitoring**: Watches `.py` and `.json` files for changes
+- **Smart Restart**: 1-second debounce to avoid excessive restarts
+- **Process Management**: Graceful service restart with proper cleanup
+- **Real-time Logs**: Shows restart events and service status
+- **Container Compatible**: Works seamlessly in Docker development environment
+
+### Usage
+```bash
+# Start development environment with hot reload
+docker compose -f docker-compose.dev.yml up -d
+
+# View hot reload logs for a specific service
+docker compose -f docker-compose.dev.yml logs [service-name] -f
+
+# Example log output when file changes:
+# 2025-08-19 03:13:32,165 - hot_reload - INFO - 文件变更检测到，正在重启服务...
+# 2025-08-19 03:13:32,200 - hot_reload - INFO - 启动进程: /usr/local/bin/python main.py
+```
+
+### Implementation Details
+- **Framework Hot Reload**: 
+  - FastAPI: `uvicorn.run(..., reload=True)` for automatic Python file monitoring
+  - Flask: `FLASK_ENV=development` + `FLASK_DEBUG=1` for debug mode with auto-restart
+- **Custom Hot Reload Module**: `utils/hot_reload.py` - Watchdog-based file monitoring for pure Python services
+- **Service Runners**: `services/*/dev_runner.py` - Development-specific entry points for non-framework services
+- **Dependencies**: Pure Python services include `watchdog>=3.0.0` in requirements.txt
+- **Docker Integration**: Development compose uses appropriate entry points based on service type
+
+### Monitored File Types
+- `.py` files: Python source code changes
+- `.json` files: Configuration file changes
+- Excluded: `__pycache__`, `.pyc`, `.git`, `venv/`, test files
+
+### Troubleshooting Hot Reload
+```bash
+# Check if hot reload is active
+docker compose -f docker-compose.dev.yml logs [service-name] --tail=10
+
+# Look for these log messages:
+# "启动热重载管理器" - Hot reload manager started
+# "开始监控目录" - Directory monitoring started
+# "文件变更检测到" - File change detected
+```
+
 ## Important Files
 - `docker-compose.yml`: Production container orchestration
+- `docker-compose.dev.yml`: Development environment with hot reload
+- `utils/hot_reload.py`: Shared hot reload implementation
+- `services/*/dev_runner.py`: Development entry points for pure Python services
 - `requirements-dev.txt`: Shared development and testing dependencies  
 - `front_end/vite.config.js`: Frontend build configuration
 - `services/*/config.json`: Individual service configurations

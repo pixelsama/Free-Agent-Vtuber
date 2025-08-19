@@ -46,6 +46,8 @@ services:
       - PYTHONPATH=/app
     volumes:
       - ./services/asr-python:/app
+      - ./utils:/app/shared_utils
+    command: ["python", "dev_runner.py"]
     restart: "no"
     depends_on:
       - redis
@@ -80,7 +82,9 @@ services:
       - PYTHONPATH=/app
     volumes:
       - ./services/memory-python:/app
+      - ./utils:/app/shared_utils
       - memory_dev_data:/app/data
+    command: ["python", "dev_runner.py"]
     restart: "no"
     depends_on:
       - redis
@@ -98,6 +102,8 @@ services:
       - PYTHONPATH=/app
     volumes:
       - ./services/chat-ai-python:/app
+      - ./utils:/app/shared_utils
+    command: ["python", "dev_runner.py"]
     restart: "no"
     depends_on:
       - redis
@@ -131,7 +137,9 @@ services:
       - PYTHONPATH=/app
     volumes:
       - ./services/tts-python:/app
+      - ./utils:/app/shared_utils
       - temp_files:/tmp/aivtuber_tasks
+    command: ["python", "dev_runner.py"]
     restart: "no"
     depends_on:
       - redis
