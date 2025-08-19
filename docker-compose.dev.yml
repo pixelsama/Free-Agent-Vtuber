@@ -1,6 +1,6 @@
 version: '3.8'
 
-# 开发环境配置 - 只启动Redis，其他服务由本地manager管理
+# 开发环境配置 - 支持代码热更新
 services:
   # Redis 消息总线
   redis:
@@ -10,10 +10,136 @@ services:
       - "6379:6379"
     volumes:
       - redis_dev_data:/data
-    restart: unless-stopped
+    restart: "no"
+    command: redis-server --appendonly yes
+
+  # 网关服务
+  gateway:
+    build:
+      context: ./services/gateway-python
+      dockerfile: Dockerfile
+    container_name: aivtuber-gateway-dev
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - PYTHONPATH=/app
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+    volumes:
+      - ./services/gateway-python:/app
+    restart: "no"
+    depends_on:
+      - redis
+
+  # ASR语音识别服务
+  asr:
+    build:
+      context: ./services/asr-python
+      dockerfile: Dockerfile
+    container_name: aivtuber-asr-dev
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PYTHONPATH=/app
+    volumes:
+      - ./services/asr-python:/app
+    restart: "no"
+    depends_on:
+      - redis
+
+  # 输入处理服务
+  input-handler:
+    build:
+      context: ./services/input-handler-python
+      dockerfile: Dockerfile
+    container_name: aivtuber-input-handler-dev
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - PYTHONPATH=/app
+    volumes:
+      - ./services/input-handler-python:/app
+      - temp_files:/tmp/aivtuber_tasks
+    restart: "no"
+    depends_on:
+      - redis
+
+  # 记忆服务
+  memory:
+    build:
+      context: ./services/memory-python
+      dockerfile: Dockerfile
+    container_name: aivtuber-memory-dev
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PYTHONPATH=/app
+    volumes:
+      - ./services/memory-python:/app
+      - memory_dev_data:/app/data
+    restart: "no"
+    depends_on:
+      - redis
+
+  # AI聊天服务
+  chat-ai:
+    build:
+      context: ./services/chat-ai-python
+      dockerfile: Dockerfile
+    container_name: aivtuber-chat-ai-dev
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PYTHONPATH=/app
+    volumes:
+      - ./services/chat-ai-python:/app
+    restart: "no"
+    depends_on:
+      - redis
+
+  # 输出处理服务
+  output-handler:
+    build:
+      context: ./services/output-handler-python
+      dockerfile: Dockerfile
+    container_name: aivtuber-output-handler-dev
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - PYTHONPATH=/app
+    volumes:
+      - ./services/output-handler-python:/app
+      - temp_files:/tmp/aivtuber_tasks
+    restart: "no"
+    depends_on:
+      - redis
+
+  # TTS语音合成服务
+  tts:
+    build:
+      context: ./services/tts-python
+      dockerfile: Dockerfile
+    container_name: aivtuber-tts-dev
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - PYTHONPATH=/app
+    volumes:
+      - ./services/tts-python:/app
+      - temp_files:/tmp/aivtuber_tasks
+    restart: "no"
+    depends_on:
+      - redis
 
 volumes:
   redis_dev_data:
+  memory_dev_data:
+  temp_files:
 
 networks:
   default:
