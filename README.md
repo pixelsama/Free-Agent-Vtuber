@@ -128,6 +128,9 @@ chmod +x ./deploy.sh
 
 # Windows:
 deploy.bat
+
+# 开发环境（支持热重载）:
+docker compose -f docker-compose.dev.yml up -d
 ```
 
 ### 📦 本地部署
@@ -268,24 +271,6 @@ Docker部署是最简单、最可靠的部署方式，所有服务都运行在�
     - 🎭 **虚拟主播界面**: 需要单独启动前端（见下方说明）
     
     **注意**: Docker部署模式下，所有微服务独立运行，无集中管理界面。如需管理界面，请使用本地部署模式。
-
-**Docker常用命令：**
-```bash
-# 停止所有服务
-docker-compose down
-
-# 重启特定服务
-docker-compose restart [服务名]
-
-# 查看特定服务日志
-docker-compose logs -f [服务名]
-
-# 重新构建并启动
-docker-compose up --build -d
-
-# 清理未使用的镜像和容器
-docker system prune
-```
 
 #### 📦 方式二：使用管理器（本地部署）
 

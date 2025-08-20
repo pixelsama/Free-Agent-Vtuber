@@ -182,11 +182,94 @@ curl -X POST http://localhost:8000/api/asr -F "audio_file=@test.wav"
 ```
 
 ### Adding New Services
+
+#### Production Environment
 1. Create new directory in `services/`
 2. Add `Dockerfile`, `requirements.txt`, `config.json`, `main.py`
 3. Update `docker-compose.yml` if using Docker deployment
 4. Follow Redis pub/sub or queue patterns for communication
 5. Add corresponding tests in `tests/` directory
+
+#### Development Environment
+To add a new service to the development environment with hot reload support:
+
+1. **Create Service Structure**:
+   ```bash
+   mkdir services/your-new-service-python
+   cd services/your-new-service-python
+   touch Dockerfile requirements.txt config.json main.py
+   ```
+
+2. **Choose Hot Reload Strategy**:
+   - **Framework Services** (FastAPI/Flask): Use native hot reload
+   - **Pure Python Services**: Use custom hot reload with `dev_runner.py`
+
+3. **For Framework Services** (FastAPI/Flask):
+   ```yaml
+   # Add to docker-compose.dev.yml
+   your-new-service:
+     build:
+       context: ./services/your-new-service-python
+       dockerfile: Dockerfile
+     container_name: aivtuber-your-new-service-dev
+     environment:
+       - REDIS_HOST=redis
+       - REDIS_PORT=6379
+       - PYTHONPATH=/app
+     volumes:
+       - ./services/your-new-service-python:/app
+     restart: "no"
+     depends_on:
+       - redis
+   ```
+
+4. **For Pure Python Services**:
+   ```bash
+   # Create dev_runner.py
+   cp services/memory-python/dev_runner.py services/your-new-service-python/
+   # Edit dev_runner.py to match your service name
+   ```
+   
+   ```yaml
+   # Add to docker-compose.dev.yml with custom command
+   your-new-service:
+     build:
+       context: ./services/your-new-service-python
+       dockerfile: Dockerfile
+     container_name: aivtuber-your-new-service-dev
+     environment:
+       - REDIS_HOST=redis
+       - REDIS_PORT=6379
+       - PYTHONPATH=/app
+     volumes:
+       - ./services/your-new-service-python:/app
+       - ./utils:/app/shared_utils
+     command: ["python", "dev_runner.py"]
+     restart: "no"
+     depends_on:
+       - redis
+   ```
+
+5. **Add Hot Reload Dependencies**:
+   ```bash
+   # Add to requirements.txt for pure Python services
+   echo "watchdog>=3.0.0" >> services/your-new-service-python/requirements.txt
+   ```
+
+6. **Environment Variables** (if needed):
+   - Add service-specific environment variables to the service configuration
+   - For network routing, follow the pattern: `SERVICE_URL=ws://service-name:port`
+
+7. **Test Integration**:
+   ```bash
+   # Build and start new service
+   docker compose -f docker-compose.dev.yml up -d --build your-new-service
+   
+   # Check logs
+   docker compose -f docker-compose.dev.yml logs your-new-service -f
+   
+   # Verify hot reload by modifying a .py file
+   ```
 
 ### Configuration Priority
 1. Environment variables (highest)
