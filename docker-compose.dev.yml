@@ -27,6 +27,8 @@ services:
       - PYTHONPATH=/app
       - FLASK_ENV=development
       - FLASK_DEBUG=1
+      - INPUT_HANDLER_URL=ws://input-handler:8001
+      - OUTPUT_HANDLER_URL=ws://output-handler:8002
     volumes:
       - ./services/gateway-python:/app
     restart: "no"
