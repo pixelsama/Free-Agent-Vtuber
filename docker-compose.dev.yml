@@ -163,6 +163,27 @@ services:
     depends_on:
       - redis
 
+  # Letta桥接服务 (开发环境)
+  letta-bridge:
+    build:
+      context: ./services/letta-bridge-python
+      dockerfile: Dockerfile
+    container_name: aivtuber-letta-bridge-dev
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - LETTA_API_URL=http://letta:8283
+      - LETTA_API_KEY=${LETTA_API_KEY}
+      - PYTHONPATH=/app
+    volumes:
+      - ./services/letta-bridge-python:/app
+      - ./utils:/app/shared_utils
+    command: ["python", "dev_runner.py"]
+    restart: "no"
+    depends_on:
+      - redis
+      - letta
+
 volumes:
   redis_dev_data:
   memory_dev_data:

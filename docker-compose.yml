@@ -157,6 +157,24 @@ services:
       retries: 3
       start_period: 60s
 
+  # Letta桥接服务
+  letta-bridge:
+    build:
+      context: ./services/letta-bridge-python
+      dockerfile: Dockerfile
+    container_name: aivtuber-letta-bridge
+    environment:
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - LETTA_API_URL=http://letta:8283
+      - LETTA_API_KEY=${LETTA_API_KEY}
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+      letta:
+        condition: service_healthy
+
 volumes:
   redis_data:
   memory_data:
