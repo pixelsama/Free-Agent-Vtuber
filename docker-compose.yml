@@ -133,6 +133,30 @@ services:
       redis:
         condition: service_healthy
 
+  # Letta永久记忆服务
+  letta:
+    image: letta/letta:latest
+    container_name: aivtuber-letta
+    ports:
+      - "8283:8283"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LETTA_MODEL=${LETTA_MODEL:-gpt-4}
+    volumes:
+      - ./data/letta/pgdata:/var/lib/postgresql/data
+      - ./data/letta/config:/app/.letta
+      - ./data/letta/logs:/app/logs
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8283/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
 volumes:
   redis_data:
   memory_data:
