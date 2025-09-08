@@ -1,0 +1,19 @@
+version: v1.1
+
+llm:
+  provider: openai
+  config:
+    model: gpt-4o-mini
+    temperature: 0.1
+
+embedder:
+  provider: openai
+  config:
+    model: text-embedding-3-small
+
+vector_store:
+  provider: qdrant
+  config:
+    collection_name: mem0_collection
+    host: vector-db
+    port: 6333

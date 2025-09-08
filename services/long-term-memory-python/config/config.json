@@ -1,0 +1,27 @@
+{
+  "service": {
+    "name": "long-term-memory",
+    "host": "0.0.0.0",
+    "port": 8003
+  },
+  "redis": {
+    "host": "localhost",
+    "port": 6379,
+    "db": 0
+  },
+  "mem0": {
+    "config_path": "/app/config/mem0_config.yaml"
+  },
+  "qdrant": {
+    "host": "localhost",
+    "port": 6333,
+    "collection_name": "mem0_collection"
+  },
+  "channels": {
+    "memory_updates": "memory_updates",
+    "ltm_responses": "ltm_responses"
+  },
+  "queues": {
+    "ltm_requests": "ltm_requests"
+  }
+}

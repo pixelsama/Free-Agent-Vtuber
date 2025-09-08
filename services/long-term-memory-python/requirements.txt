@@ -1,0 +1,19 @@
+# 核心依赖 - 符合集成方案需求
+mem0ai==0.1.0
+qdrant-client>=1.7.0
+redis>=4.5.0
+fastapi>=0.100.0
+uvicorn>=0.20.0
+pydantic>=2.0.0
+openai>=1.0.0
+python-multipart>=0.0.6
+aiohttp>=3.9.0
+
+# 测试依赖
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+pytest-mock>=3.10.0
+
+# 开发依赖
+black>=23.0.0
+isort>=5.12.0
