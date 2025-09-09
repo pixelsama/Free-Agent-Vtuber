@@ -71,37 +71,24 @@ class LTMDevRunner:
         if not HotReloadManager:
             return self.run_basic()
         
-        def on_file_changed(file_path):
-            print(f"📝 检测到文件变更: {file_path}")
-            self.restart_service()
+        print("🔥 启动热更新模式...")
         
-        # 启动服务
-        self.start_service()
-        
-        # 启动热更新监控
+        # 使用HotReloadManager自动管理进程
         hot_reload = HotReloadManager(
+            main_module="main",
             watch_directory=str(self.service_path),
-            callback=on_file_changed,
-            patterns=["*.py", "*.json", "*.yaml", "*.yml"],
-            ignore_patterns=["*__pycache__*", "*.pyc", "*/.git/*", "*/logs/*"]
+            watch_patterns=[".py", ".json", ".yaml", ".yml"],
+            ignore_patterns=["__pycache__", ".pyc", ".git", "logs", ".venv", "venv"]
         )
         
         try:
-            print("🔥 热更新已启用，监控文件变化中...")
-            hot_reload.start()
-            
-            # 主循环
-            while True:
-                if self.process and self.process.poll() is not None:
-                    print("⚠️ 服务进程意外退出，正在重启...")
-                    self.restart_service()
-                time.sleep(1)
+            # HotReloadManager会自动启动进程并监控文件变化
+            hot_reload.run()
                 
         except KeyboardInterrupt:
             print("\n🔚 收到中断信号，正在关闭...")
         finally:
-            hot_reload.stop()
-            self.stop_service()
+            hot_reload.shutdown()
     
     def run_basic(self):
         """基础运行模式（无热更新）"""
