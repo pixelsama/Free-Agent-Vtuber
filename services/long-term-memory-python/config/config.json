@@ -1,0 +1,30 @@
+{
+  "service": {
+    "name": "long-term-memory",
+    "host": "0.0.0.0",
+    "port": 8003
+  },
+  "redis": {
+    "host": "localhost",
+    "port": 6379,
+    "db": 0
+  },
+  "mem0": {
+    "config_path": "/app/config/mem0_config.yaml"
+  },
+  "pgvector": {
+    "host": "localhost",
+    "port": 5432,
+    "database": "ltm_vectors",
+    "user": "ltm_user",
+    "password": "ltm_password",
+    "table_name": "ltm_embeddings"
+  },
+  "channels": {
+    "memory_updates": "memory_updates",
+    "ltm_responses": "ltm_responses"
+  },
+  "queues": {
+    "ltm_requests": "ltm_requests"
+  }
+}
