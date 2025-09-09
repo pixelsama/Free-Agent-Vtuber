@@ -12,8 +12,11 @@ embedder:
     model: text-embedding-3-small
 
 vector_store:
-  provider: qdrant
+  provider: pgvector
   config:
-    collection_name: mem0_collection
-    host: vector-db
-    port: 6333
+    dbname: ltm_vectors
+    host: postgres
+    port: 5432
+    user: ltm_user
+    password: ltm_password
+    table_name: ltm_embeddings

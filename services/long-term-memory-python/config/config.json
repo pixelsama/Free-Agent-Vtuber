@@ -12,10 +12,13 @@
   "mem0": {
     "config_path": "/app/config/mem0_config.yaml"
   },
-  "qdrant": {
+  "pgvector": {
     "host": "localhost",
-    "port": 6333,
-    "collection_name": "mem0_collection"
+    "port": 5432,
+    "database": "ltm_vectors",
+    "user": "ltm_user",
+    "password": "ltm_password",
+    "table_name": "ltm_embeddings"
   },
   "channels": {
     "memory_updates": "memory_updates",
