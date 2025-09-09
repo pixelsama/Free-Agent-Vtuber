@@ -91,6 +91,47 @@ services:
     depends_on:
       - redis
 
+  # PostgreSQL数据库 (用于pgvector)
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: aivtuber-postgres-dev
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-ltm_vectors}
+      - POSTGRES_USER=${POSTGRES_USER:-ltm_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-ltm_password}
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    restart: "no"
+
+  # 长期记忆服务
+  long-term-memory:
+    build:
+      context: ./services/long-term-memory-python
+      dockerfile: Dockerfile
+    container_name: aivtuber-long-term-memory-dev
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PGVECTOR_HOST=postgres
+      - PGVECTOR_PORT=5432
+      - PGVECTOR_DATABASE=${POSTGRES_DB:-ltm_vectors}
+      - PGVECTOR_USER=${POSTGRES_USER:-ltm_user}
+      - PGVECTOR_PASSWORD=${POSTGRES_PASSWORD:-ltm_password}
+      - MEM0_CONFIG_PATH=config/mem0_config.yaml
+      - PYTHONPATH=/app
+    volumes:
+      - ./services/long-term-memory-python:/app
+      - ltm_dev_data:/app/data
+      - ltm_dev_logs:/app/logs
+    command: ["python", "dev_runner.py"]
+    restart: "no"
+    depends_on:
+      - redis
+      - postgres
+
   # AI聊天服务
   chat-ai:
     build:
@@ -149,6 +190,9 @@ services:
 volumes:
   redis_dev_data:
   memory_dev_data:
+  postgres_dev_data:
+  ltm_dev_data:
+  ltm_dev_logs:
   temp_files:
 
 networks:

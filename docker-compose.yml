@@ -101,6 +101,51 @@ services:
       redis:
         condition: service_healthy
 
+  # PostgreSQL数据库 (用于pgvector)
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: aivtuber-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-ltm_vectors}
+      - POSTGRES_USER=${POSTGRES_USER:-ltm_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-ltm_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ltm_user}"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # 长期记忆服务
+  long-term-memory:
+    build:
+      context: ./services/long-term-memory-python
+      dockerfile: Dockerfile
+    container_name: aivtuber-long-term-memory
+    environment:
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PGVECTOR_HOST=${PGVECTOR_HOST:-postgres}
+      - PGVECTOR_PORT=${PGVECTOR_PORT:-5432}
+      - PGVECTOR_DATABASE=${POSTGRES_DB:-ltm_vectors}
+      - PGVECTOR_USER=${POSTGRES_USER:-ltm_user}
+      - PGVECTOR_PASSWORD=${POSTGRES_PASSWORD:-ltm_password}
+      - MEM0_CONFIG_PATH=config/mem0_config.yaml
+    volumes:
+      - ltm_data:/app/data
+      - ltm_logs:/app/logs
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
   # 输出处理服务
   output-handler:
     build:
@@ -136,6 +181,9 @@ services:
 volumes:
   redis_data:
   memory_data:
+  postgres_data:
+  ltm_data:
+  ltm_logs:
   temp_files:
 
 networks:
