@@ -28,9 +28,14 @@ class MemoryMetadata(BaseModel):
 
 class UserMemory(BaseModel):
     """用户记忆数据结构"""
+    id: Optional[str] = Field(description="记忆ID", default=None)
     user_id: str = Field(description="用户ID")
     content: str = Field(description="记忆内容")
     metadata: MemoryMetadata = Field(description="记忆元数据")
+    
+    class Config:
+        """允许额外字段（如embedding）"""
+        extra = "allow"
 
 
 class MemorySearchResult(BaseModel):

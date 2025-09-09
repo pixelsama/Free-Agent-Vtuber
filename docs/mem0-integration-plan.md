@@ -214,21 +214,26 @@ class LongTermMemoryService:
 
 ### 6.1 向量数据库选择
 
-推荐使用**Qdrant**：
-- 高性能向量搜索
-- 支持过滤和元数据查询
-- Docker部署简单
-- 与Mem0集成良好
+推荐使用**pgvector（PostgreSQL扩展）**：
+- PostgreSQL + 向量扩展，部署简单
+- ACID事务支持，数据可靠性高
+- 与现有PostgreSQL基础设施集成良好
+- 支持高效的向量相似性搜索和元数据过滤
+- 比专用向量数据库更轻量级，维护成本低
 
 ```yaml
 # docker-compose.yml添加
 vector-db:
-  image: qdrant/qdrant:latest
-  container_name: aivtuber-qdrant
+  image: pgvector/pgvector:pg16
+  container_name: aivtuber-pgvector
+  environment:
+    POSTGRES_DB: long_term_memory
+    POSTGRES_USER: ltm_user
+    POSTGRES_PASSWORD: ltm_password
   ports:
-    - "6333:6333"
+    - "5432:5432"
   volumes:
-    - qdrant_data:/qdrant/storage
+    - pgvector_data:/var/lib/postgresql/data
   restart: unless-stopped
 ```
 

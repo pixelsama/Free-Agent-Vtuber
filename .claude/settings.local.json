@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(git add:*)",
-      "Bash(docker compose:*)"
+      "Bash(docker compose:*)",
+      "Bash(source:*)",
+      "Bash(python -m pytest tests/unit/test_redis_message_bus.py -v)",
+      "Bash(python -m pytest tests/unit/test_redis_message_bus.py::TestRedisMessageBus::test_consume_memory_updates_message -v)",
+      "Bash(uv pip install:*)"
     ],
     "deny": [],
     "ask": []

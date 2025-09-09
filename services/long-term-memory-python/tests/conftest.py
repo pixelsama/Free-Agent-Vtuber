@@ -47,12 +47,26 @@ def test_config():
 @pytest.fixture
 def mock_redis():
     """Mock Redis客户端"""
+    from unittest.mock import Mock, AsyncMock
+    
     mock = AsyncMock()
     mock.get.return_value = None
     mock.setex.return_value = True
     mock.publish.return_value = 1
     mock.lpush.return_value = 1
     mock.brpop.return_value = None
+    
+    # Mock pubsub behavior
+    from unittest.mock import Mock
+    mock_pubsub_instance = Mock()
+    mock_pubsub_instance.subscribe = AsyncMock()
+    mock_pubsub_instance.unsubscribe = AsyncMock()
+    mock_pubsub_instance.close = AsyncMock()
+    # listen()应该返回一个可以被async for迭代的对象
+    mock_pubsub_instance.listen = Mock()
+    
+    # pubsub()是同步方法，使用Mock而不是AsyncMock
+    mock.pubsub = Mock(return_value=mock_pubsub_instance)
     return mock
 
 

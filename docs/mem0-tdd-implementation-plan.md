@@ -10,7 +10,7 @@
 1. **独立服务部署**：`long-term-memory-python`服务
 2. **Redis消息总线集成**：监听`memory_updates`，发布`ltm_responses`
 3. **Mem0框架集成**：使用真实Mem0 API进行记忆管理
-4. **Qdrant向量数据库**：语义检索和存储
+4. **pgvector向量数据库**：PostgreSQL + 向量扩展，语义检索和存储
 5. **完整数据流**：符合集成方案第4节设计
 
 ## TDD循环设计
@@ -84,43 +84,44 @@ class TestMem0Integration:
 - 优化Mem0配置
 - 添加连接池和错误恢复
 
-### TDD循环3：Qdrant向量数据库集成
+### TDD循环3：pgvector向量数据库集成
 
 **红色阶段（失败测试）**：
 ```python
-class TestQdrantIntegration:
-    async def test_qdrant_vector_storage(self):
-        """测试Qdrant向量存储和检索"""
+class TestPgvectorIntegration:
+    async def test_pgvector_vector_storage(self):
+        """测试pgvector向量存储和检索"""
         # 测试向量存储
-        vector_data = {
+        memory_data = {
             "id": "mem_001",
-            "vector": [0.1, 0.2, 0.3, ...],  # 1536维向量
-            "payload": {
-                "user_id": "test_user",
-                "content": "用户喜欢动漫",
-                "category": "preference"
-            }
+            "embedding": [0.1, 0.2, 0.3, ...],  # 1536维向量
+            "content": "用户喜欢动漫",
+            "user_id": "test_user",
+            "category": "preference",
+            "metadata": {"timestamp": 1234567890}
         }
         
-        success = await qdrant_client.upsert_vectors([vector_data])
-        assert success is True
+        memory_id = await pgvector_client.insert_memory(memory_data)
+        assert memory_id is not None
         
         # 测试向量检索
         query_vector = [0.1, 0.2, 0.3, ...]
-        results = await qdrant_client.search(
+        results = await pgvector_client.search_similar(
             query_vector=query_vector,
-            filter={"user_id": "test_user"},
-            limit=5
+            user_id="test_user",
+            limit=5,
+            threshold=0.7
         )
         
         assert len(results) > 0
-        assert results[0]["payload"]["user_id"] == "test_user"
+        assert results[0]["user_id"] == "test_user"
+        assert results[0]["similarity"] > 0.7
 ```
 
 **绿色阶段（实现功能）**：
-- 集成Qdrant Python客户端
+- 集成PostgreSQL + pgvector扩展
 - 实现向量存储和搜索
-- 配置集合和索引
+- 配置数据库表结构和索引
 
 **重构阶段**：
 - 优化向量维度和检索性能
@@ -166,42 +167,15 @@ class TestLongTermMemoryRequests:
 - 优化请求处理并发性
 - 添加请求验证和错误处理
 
-### TDD循环5：用户画像管理
+### ~~TDD循环5：用户画像管理~~
 
-**红色阶段（失败测试）**：
-```python
-class TestUserProfileManagement:
-    async def test_build_user_profile_from_memories(self):
-        """测试从记忆构建用户画像"""
-        # 准备用户记忆数据
-        user_memories = [
-            {"content": "用户喜欢看动漫", "category": "preference"},
-            {"content": "用户性格比较内向", "category": "personality"},
-            {"content": "用户是大学生", "category": "context"}
-        ]
-        
-        # 构建用户画像
-        profile = await profile_builder.build_profile("test_user", user_memories)
-        
-        # 验证画像结构
-        assert "preferences" in profile
-        assert "personality_traits" in profile
-        assert "context_info" in profile
-        
-        # 验证内容正确性
-        assert "动漫" in profile["preferences"]
-        assert "内向" in profile["personality_traits"]
-        assert "大学生" in profile["context_info"]
-```
+**已取消** - Mem0框架已提供强大的记忆管理和用户画像功能：
+- ✅ 智能记忆分类和标签自动提取
+- ✅ 基于语义相似性的用户偏好识别
+- ✅ 动态用户画像构建和更新
+- ✅ 上下文感知的个性化推荐
 
-**绿色阶段（实现功能）**：
-- 实现用户画像构建算法
-- 记忆分类和标签提取
-- 画像更新和缓存机制
-
-**重构阶段**：
-- 优化画像构建性能
-- 添加画像版本管理
+无需重复实现，直接使用Mem0的内置功能即可。
 
 ### TDD循环6：端到端数据流集成
 
@@ -262,72 +236,40 @@ class TestEndToEndFlow:
 - 性能优化和监控
 - 错误处理和恢复机制
 
-### TDD循环7：记忆质量评估系统
+### ~~TDD循环7：记忆质量评估系统~~
 
-**红色阶段（失败测试）**：
-```python
-class TestMemoryQualitySystem:
-    async def test_memory_quality_evaluation(self):
-        """测试记忆质量评估"""
-        # 高质量记忆
-        high_quality_memory = {
-            "content": "用户是一个热爱编程的软件工程师，特别擅长Python开发，经常参与开源项目",
-            "metadata": {
-                "mention_count": 5,
-                "emotion_intensity": 0.8,
-                "created_at": datetime.now()
-            }
-        }
-        
-        # 低质量记忆
-        low_quality_memory = {
-            "content": "嗯",
-            "metadata": {
-                "mention_count": 1,
-                "emotion_intensity": 0.1,
-                "created_at": datetime.now()
-            }
-        }
-        
-        # 评估质量
-        high_score = await quality_evaluator.evaluate_memory(high_quality_memory)
-        low_score = await quality_evaluator.evaluate_memory(low_quality_memory)
-        
-        # 验证评分差异
-        assert high_score > 0.8
-        assert low_score < 0.3
-        assert high_score > low_score
-        
-        # 测试质量过滤
-        filtered_memories = await quality_evaluator.filter_high_quality_memories(
-            user_id="test_user",
-            threshold=0.5
-        )
-        assert all(m["quality_score"] >= 0.5 for m in filtered_memories)
-```
+**已取消** - Mem0框架内置了智能记忆质量管理功能：
+- ✅ 自动记忆重要性评估和相关性打分
+- ✅ 智能去重和记忆合并机制  
+- ✅ 基于时间和访问频率的衰减算法
+- ✅ 上下文相关性过滤和优先级排序
 
-**绿色阶段（实现功能）**：
-- 实现记忆质量评估算法
-- 基于提及频率、情感强度、时间衰减的评分
-- 质量过滤和排序机制
-
-**重构阶段**：
-- 调优评估算法参数
-- 添加质量改进建议
+无需重复实现，直接使用Mem0的内置功能即可。
 
 ## 实现顺序和依赖关系
 
 ```
-TDD循环1 (Redis消息总线) 
+TDD循环1 (Redis消息总线) ✅ 已完成
     ↓
-TDD循环2 (Mem0集成) + TDD循环3 (Qdrant集成)
+TDD循环2 (Mem0集成) + TDD循环3 (pgvector集成) ✅ 已完成
     ↓
-TDD循环4 (请求处理) + TDD循环5 (用户画像)
+TDD循环4 (请求处理) ✅ 已完成
     ↓
-TDD循环6 (端到端集成)
+~~TDD循环5 (用户画像)~~ ❌ 已取消 (Mem0内置)
     ↓
-TDD循环7 (质量评估)
+TDD循环6 (端到端集成) ✅ 已完成
+    ↓
+~~TDD循环7 (质量评估)~~ ❌ 已取消 (Mem0内置)
 ```
+
+### 当前进度：5/5个核心循环已完成
+
+**🎉 所有TDD循环已完成！** 长期记忆服务具备完整功能：
+- ✅ Redis消息总线通信
+- ✅ Mem0智能记忆管理（包含用户画像功能）
+- ✅ pgvector向量存储检索
+- ✅ 完整的请求处理流程
+- ✅ 端到端数据流验证
 
 ## 服务架构实现
 
@@ -338,7 +280,7 @@ services/long-term-memory-python/
 │   ├── core/
 │   │   ├── redis_client.py      # Redis消息总线客户端
 │   │   ├── mem0_client.py       # Mem0框架客户端  
-│   │   └── qdrant_client.py     # Qdrant向量数据库客户端
+│   │   └── pgvector_client.py   # pgvector向量数据库客户端
 │   ├── services/
 │   │   ├── message_processor.py # 消息处理服务
 │   │   ├── memory_service.py    # 记忆管理服务
@@ -367,7 +309,8 @@ services/long-term-memory-python/
 **requirements.txt**：
 ```txt
 mem0ai==0.1.0
-qdrant-client>=1.7.0
+asyncpg>=0.28.0
+psycopg2-binary>=2.9.7
 redis>=4.5.0
 fastapi>=0.100.0
 uvicorn>=0.20.0
@@ -393,23 +336,26 @@ embedder:
     model: text-embedding-3-small
 
 vector_store:
-  provider: qdrant
+  provider: pgvector
   config:
-    collection_name: mem0_collection
+    database: long_term_memory
     host: vector-db
-    port: 6333
+    port: 5432
+    user: ltm_user
+    password: ltm_password
+    table_name: memory_vectors
 ```
 
 ## 测试策略
 
 ### 测试层级
 1. **单元测试**：各TDD循环的独立功能测试
-2. **集成测试**：Redis + Mem0 + Qdrant集成测试
+2. **集成测试**：Redis + Mem0 + pgvector集成测试
 3. **端到端测试**：完整数据流测试
 4. **性能测试**：并发和大数据量测试
 
 ### Mock策略
-- **开发阶段**：Mock Mem0和Qdrant，专注逻辑实现
+- **开发阶段**：Mock Mem0和pgvector，专注逻辑实现
 - **集成阶段**：使用真实服务，测试完整功能
 - **CI/CD阶段**：容器化测试环境，自动化验证
 
@@ -442,12 +388,12 @@ long-term-memory:
     - vector-db
 
 vector-db:
-  image: qdrant/qdrant:latest
-  container_name: aivtuber-qdrant
+  image: pgvector/pgvector:pg16
+  container_name: aivtuber-pgvector
   ports:
     - "6333:6333"
   volumes:
-    - qdrant_data:/qdrant/storage
+    - pgvector_data:/var/lib/postgresql/data
   restart: unless-stopped
 ```
 
@@ -459,7 +405,7 @@ docker compose logs long-term-memory -f
 # 期望看到的日志：
 # ✓ Redis连接成功
 # ✓ Mem0客户端初始化完成
-# ✓ Qdrant连接建立
+# ✓ pgvector连接建立
 # ✓ 开始监听memory_updates频道
 # ✓ 开始处理ltm_requests队列
 ```
@@ -482,7 +428,7 @@ docker compose logs long-term-memory -f
 
 ### 技术风险
 - **Mem0 API稳定性**：版本锁定，充分测试
-- **Qdrant性能**：分片部署，缓存机制
+- **pgvector性能**：连接池优化，索引调优
 - **消息队列堵塞**：监控和告警，自动扩容
 
 ### 集成风险  
