@@ -12,7 +12,9 @@ import time
 from pathlib import Path
 
 # 添加共享工具路径
-sys.path.append(os.path.join(os.path.dirname(__file__), 'shared_utils'))
+shared_utils_path = os.path.join(os.path.dirname(__file__), '..', '..', 'utils')
+if shared_utils_path not in sys.path:
+    sys.path.append(shared_utils_path)
 
 try:
     from utils.hot_reload import HotReloadManager
@@ -71,43 +73,32 @@ class LTMDevRunner:
         if not HotReloadManager:
             return self.run_basic()
         
-        def on_file_changed(file_path):
-            print(f"📝 检测到文件变更: {file_path}")
-            self.restart_service()
+        print("🔥 启动热更新模式...")
         
-        # 启动服务
-        self.start_service()
-        
-        # 启动热更新监控
+        # 使用HotReloadManager自动管理进程
         hot_reload = HotReloadManager(
+            main_module="main",
             watch_directory=str(self.service_path),
-            callback=on_file_changed,
-            patterns=["*.py", "*.json", "*.yaml", "*.yml"],
-            ignore_patterns=["*__pycache__*", "*.pyc", "*/.git/*", "*/logs/*"]
+            watch_patterns=[".py", ".json", ".yaml", ".yml"],
+            ignore_patterns=["__pycache__", ".pyc", ".git", "logs", ".venv", "venv"]
         )
         
         try:
-            print("🔥 热更新已启用，监控文件变化中...")
-            hot_reload.start()
-            
-            # 主循环
-            while True:
-                if self.process and self.process.poll() is not None:
-                    print("⚠️ 服务进程意外退出，正在重启...")
-                    self.restart_service()
-                time.sleep(1)
+            # HotReloadManager会自动启动进程并监控文件变化
+            hot_reload.run()
                 
         except KeyboardInterrupt:
             print("\n🔚 收到中断信号，正在关闭...")
         finally:
-            hot_reload.stop()
-            self.stop_service()
+            hot_reload.shutdown()
     
     def run_basic(self):
         """基础运行模式（无热更新）"""
         print("⚠️ 基础模式运行（无热更新功能）")
         
         def signal_handler(signum, frame):
+            """信号处理器"""
+            _ = frame  # 忽略frame参数
             print(f"\n收到信号 {signum}，正在关闭服务...")
             self.stop_service()
             sys.exit(0)
