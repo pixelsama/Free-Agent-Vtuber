@@ -12,7 +12,9 @@ import time
 from pathlib import Path
 
 # 添加共享工具路径
-sys.path.append(os.path.join(os.path.dirname(__file__), 'shared_utils'))
+shared_utils_path = os.path.join(os.path.dirname(__file__), '..', '..', 'utils')
+if shared_utils_path not in sys.path:
+    sys.path.append(shared_utils_path)
 
 try:
     from utils.hot_reload import HotReloadManager
@@ -95,6 +97,8 @@ class LTMDevRunner:
         print("⚠️ 基础模式运行（无热更新功能）")
         
         def signal_handler(signum, frame):
+            """信号处理器"""
+            _ = frame  # 忽略frame参数
             print(f"\n收到信号 {signum}，正在关闭服务...")
             self.stop_service()
             sys.exit(0)
