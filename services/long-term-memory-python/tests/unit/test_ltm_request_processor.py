@@ -211,24 +211,36 @@ class TestLTMRequestProcessor:
             publish_call = mock_redis_client.publish.call_args
             assert publish_call[0][0] == "ltm_responses"
 
-    async def test_request_validation(self, request_processor):
+    @pytest.mark.parametrize(
+        "invalid_request,missing_field",
+        [
+            pytest.param(
+                {"type": "search", "user_id": "test_user", "data": {}},
+                "request_id",
+                id="missing_request_id",
+            ),
+            pytest.param(
+                {"request_id": "req_001", "user_id": "test_user", "data": {}},
+                "type",
+                id="missing_type",
+            ),
+            pytest.param(
+                {"request_id": "req_001", "type": "search", "data": {}},
+                "user_id",
+                id="missing_user_id",
+            ),
+            pytest.param(
+                {"request_id": "req_001", "type": "search", "user_id": "test_user"},
+                "data",
+                id="missing_data",
+            ),
+        ],
+    )
+    async def test_request_validation(self, request_processor, invalid_request, missing_field):
         """测试请求验证逻辑"""
-        # 测试缺少必要字段的请求
-        invalid_requests = [
-            # 缺少request_id
-            {"type": "search", "user_id": "test_user", "data": {}},
-            # 缺少type
-            {"request_id": "req_001", "user_id": "test_user", "data": {}},
-            # 缺少user_id
-            {"request_id": "req_001", "type": "search", "data": {}},
-            # 缺少data
-            {"request_id": "req_001", "type": "search", "user_id": "test_user"}
-        ]
-        
-        for invalid_request in invalid_requests:
-            response = await request_processor.process_request(invalid_request)
-            assert response["status"] == "error"
-            assert "缺少必要字段" in response["error_message"]
+        response = await request_processor.process_request(invalid_request)
+        assert response["status"] == "error"
+        assert response["error_message"] == f"缺少必要字段: {missing_field}"
 
     async def test_concurrent_request_processing(self, request_processor):
         """测试并发请求处理能力"""
