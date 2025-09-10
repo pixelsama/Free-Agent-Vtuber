@@ -206,6 +206,14 @@ class TestEndToEndFlow:
         assert len(results) == 5
         assert all(result == "mem_001" for result in results)
 
+    @pytest.mark.parametrize(
+        "invalid_message",
+        [
+            pytest.param({}, id="empty_message"),
+            pytest.param({"user_id": "test_user"}, id="missing_content"),
+            pytest.param({"content": "内容但缺少用户ID"}, id="missing_user_id"),
+        ],
+    )
     async def test_message_format_validation(self, message_processor):
         """测试消息格式验证"""
         # 测试有效消息格式
@@ -213,24 +221,29 @@ class TestEndToEndFlow:
             "user_id": "test_user",
             "content": "有效的记忆内容",
             "source": "conversation",
-            "timestamp": 1234567890
+            "timestamp": 1234567890,
         }
-        
+
         result = await message_processor.process_memory_update(valid_message)
         assert result is not None
         assert result.get("memory_id") == "mem_001"
-        
+
         # 测试无效消息格式
         invalid_messages = [
             {},  # 空消息
-            {"user_id": "test_user"},  # 缺少content
-            {"content": "内容但缺少用户ID"},  # 缺少user_id
+            {"user_id": "test_user"},  # 缺少 content
+            {"content": "内容但缺少用户ID"},  # 缺少 user_id
+            {
+                "content": "test_memory",
+                "user_id": "test_user",
+                "summary": "fake_summary",  # 非法字段
+            },
         ]
-        
+
         for invalid_msg in invalid_messages:
             result = await message_processor.process_memory_update(invalid_msg)
-            # 无效消息应该被拒绝或返回错误
             assert result == {"error": "invalid_message_format"}
+
 
     async def test_system_integration_stability(self, message_processor, memory_service):
         """测试系统集成稳定性"""

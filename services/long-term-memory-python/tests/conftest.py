@@ -152,29 +152,3 @@ def sample_ltm_request():
         }
     )
 
-
-@pytest.fixture
-def sample_search_results():
-    """示例搜索结果"""
-    return [
-        {
-            "id": "mem_001",
-            "memory": "用户喜欢看动漫",
-            "score": 0.95,
-            "metadata": {
-                "category": "preference",
-                "confidence": 0.8,
-                "created_at": "2024-01-01T12:00:00Z"
-            }
-        },
-        {
-            "id": "mem_002",
-            "memory": "用户喜欢《进击的巨人》",
-            "score": 0.85,
-            "metadata": {
-                "category": "preference",
-                "confidence": 0.9,
-                "created_at": "2024-01-02T10:30:00Z"
-            }
-        }
-    ]
