@@ -11,7 +11,7 @@ import asyncio
 import json
 import pytest
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 pytestmark = pytest.mark.asyncio
 
