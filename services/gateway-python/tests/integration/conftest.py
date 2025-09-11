@@ -1,71 +1,19 @@
+import asyncio
 import os
 import sys
-import pytest
-import pytest_asyncio
-import asyncio
-import websockets
-from fastapi import FastAPI
-import uvicorn
 import threading
 import time
-from contextlib import asynccontextmanager
 
-# 检查是否可以导入TestClient
-try:
-    from fastapi.testclient import TestClient
-    HAS_TEST_CLIENT = True
-except ImportError:
-    TestClient = None
-    HAS_TEST_CLIENT = False
+import pytest
+import pytest_asyncio
+import uvicorn
+import websockets
 
-# 将当前目录添加到Python路径中
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
 
-# 导入main模块
-import main
-
-
-# 用于存储运行中的服务器信息
-class ServerInfo:
-    def __init__(self):
-        self.should_exit = False
-        self.thread = None
-
-
-# 创建一个简单的后端服务模拟器
-@asynccontextmanager
-async def mock_backend_lifespan(app: FastAPI):
-    yield
-    # 关闭时执行的清理代码
-
-
-mock_backend_app = FastAPI(lifespan=mock_backend_lifespan)
-
-
-@mock_backend_app.websocket("/ws/input")
-async def mock_input_websocket(websocket):
-    await websocket.accept()
-    try:
-        while True:
-            message = await websocket.receive_text()
-            # 回显消息
-            await websocket.send_text(f"Echo: {message}")
-    except websockets.exceptions.ConnectionClosed:
-        pass
-
-
-@mock_backend_app.websocket("/ws/output/{task_id}")
-async def mock_output_websocket(websocket, task_id: str):
-    await websocket.accept()
-    try:
-        while True:
-            message = await websocket.receive_text()
-            # 回显消息
-            await websocket.send_text(f"Output: {message}")
-    except websockets.exceptions.ConnectionClosed:
-        pass
+import main  # noqa: E402
 
 
 @pytest.fixture(scope="session")
@@ -76,28 +24,36 @@ def event_loop():
     loop.close()
 
 
+async def _backend_handler(websocket, path):
+    """Simple mock backend server handling input and output routes."""
+    try:
+        while True:
+            message = await websocket.recv()
+            if path == "/ws/input":
+                await websocket.send(f"Echo: {message}")
+            elif path.startswith("/ws/output/"):
+                await websocket.send(f"Output: {message}")
+    except websockets.exceptions.ConnectionClosed:
+        pass
+
+
 @pytest.fixture(scope="session")
 def mock_backend_server():
     """启动模拟后端服务"""
-    config = uvicorn.Config(
-        mock_backend_app,
-        host="127.0.0.1",
-        port=8001,
-        log_level="warning"
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    server = loop.run_until_complete(
+        websockets.serve(_backend_handler, "127.0.0.1", 8001)
     )
-    server = uvicorn.Server(config)
-    
-    # 在单独的线程中运行服务器
-    thread = threading.Thread(target=run_server, args=(server,), daemon=True)
+
+    thread = threading.Thread(target=loop.run_forever, daemon=True)
     thread.start()
-    
-    # 等待服务器启动
-    time.sleep(1)
-    
+    time.sleep(0.1)
+
     yield "ws://127.0.0.1:8001"
-    
-    # 停止服务器
-    server.should_exit = True
+
+    loop.call_soon_threadsafe(server.close)
+    loop.call_soon_threadsafe(loop.stop)
     thread.join()
 
 
@@ -112,33 +68,31 @@ def run_server(server):
 @pytest.fixture(scope="session")
 def gateway_server():
     """启动网关服务"""
-    # 设置环境变量以指向模拟的后端服务
     os.environ["INPUT_HANDLER_URL"] = "ws://127.0.0.1:8001"
     os.environ["OUTPUT_HANDLER_URL"] = "ws://127.0.0.1:8001"
-    
+    original_services = main.BACKEND_SERVICES.copy()
+    main.BACKEND_SERVICES["input"] = os.environ["INPUT_HANDLER_URL"]
+    main.BACKEND_SERVICES["output"] = os.environ["OUTPUT_HANDLER_URL"]
+
     config = uvicorn.Config(
         main.app,
         host="127.0.0.1",
         port=8000,
-        log_level="warning"
+        log_level="warning",
     )
     server = uvicorn.Server(config)
-    
-    # 在单独的线程中运行服务器
+
     thread = threading.Thread(target=run_server, args=(server,), daemon=True)
     thread.start()
-    
-    # 等待服务器启动
     time.sleep(1)
-    
+
     yield "ws://127.0.0.1:8000"
-    
-    # 停止服务器
+
     server.should_exit = True
     thread.join()
-    
-    # 清理环境变量
     if "INPUT_HANDLER_URL" in os.environ:
         del os.environ["INPUT_HANDLER_URL"]
     if "OUTPUT_HANDLER_URL" in os.environ:
         del os.environ["OUTPUT_HANDLER_URL"]
+    main.BACKEND_SERVICES.clear()
+    main.BACKEND_SERVICES.update(original_services)
