@@ -3,13 +3,14 @@ import json
 import os
 import signal
 import uuid
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from redis.asyncio import Redis
 
-from schemas import AppConfig, TaskMessage, ResultMessage
-from providers.factory import build_provider, FakeProvider
-from providers.asr_provider import BaseASRProvider
+from src.models.schemas import AppConfig, TaskMessage, ResultMessage
+from src.services.providers.factory import build_provider, FakeProvider
+from src.services.providers.asr_provider import BaseASRProvider
 
 
 # 轻量日志
@@ -19,7 +20,11 @@ def log(level: str, msg: str, **kwargs: Any) -> None:
 
 
 def load_config(config_path: Optional[str] = None) -> AppConfig:
-    cfg_path = config_path or os.path.join(os.path.dirname(__file__), "config.json")
+    cfg_path = (
+        Path(config_path)
+        if config_path
+        else Path(__file__).resolve().parents[2] / "config" / "config.json"
+    )
     with open(cfg_path, "r", encoding="utf-8") as f:
         raw = json.load(f)
     return AppConfig(**raw)

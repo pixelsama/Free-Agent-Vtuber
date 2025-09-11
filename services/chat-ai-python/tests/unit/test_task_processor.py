@@ -31,7 +31,7 @@ class TestTaskProcessor:
         await task_processor.process_memory_update(event_data)
         
         # 验证AI处理器被调用
-        task_processor.ai_processor.process_text.assert_called_once_with("你好")
+        task_processor.ai_processor.process_text.assert_called_once_with("你好", ltm_context=[])
         
         # 验证Redis发布被调用
         assert mock_redis.publish.call_count >= 1

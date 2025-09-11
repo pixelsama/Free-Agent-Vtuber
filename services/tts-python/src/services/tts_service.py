@@ -6,11 +6,11 @@ import uuid
 from typing import Dict, Any
 from pathlib import Path 
 
-from config_manager import ConfigManager
-from utils import RedisClient, setup_logger
-from providers import ProviderFactory
-from providers.openai_tts import OpenAITTS # Import to register
-from providers.edge_tts import EdgeTTS # Import to register
+from src.core.config_manager import ConfigManager
+from src.utils import RedisClient, setup_logger
+from src.services.providers import ProviderFactory
+from src.services.providers.openai_tts import OpenAITTS  # Import to register
+from src.services.providers.edge_tts import EdgeTTS  # Import to register
 
 class TTSService:
     """

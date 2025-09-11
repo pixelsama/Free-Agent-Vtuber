@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from typing import Optional
 import redis.asyncio as redis
-from memory_manager import MemoryManager
+from src.services.memory_manager import MemoryManager
 
 # 配置日志
 logging.basicConfig(
@@ -23,7 +23,7 @@ def load_config():
     """加载配置文件"""
     global config
     try:
-        config_path = Path(__file__).parent / "config.json"
+        config_path = Path(__file__).parent / "config" / "config.json"
         with open(config_path, 'r', encoding='utf-8') as f:
             config = json.load(f)
         logger.info("Configuration loaded successfully")

@@ -27,7 +27,7 @@ def load_config():
     """加载配置文件"""
     global config
     try:
-        config_path = Path(__file__).parent / "config.json"
+        config_path = Path(__file__).parent / "config" / "config.json"
         with open(config_path, 'r', encoding='utf-8') as f:
             config = json.load(f)
         logger.info("Configuration loaded successfully")

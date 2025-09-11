@@ -1,6 +1,6 @@
 import asyncio
 
-from asr_service import load_config, run_service
+from src.services.asr_service import load_config, run_service
 
 
 def main() -> None:

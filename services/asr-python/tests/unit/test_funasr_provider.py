@@ -2,8 +2,8 @@ import os
 import types
 import pytest
 
-from providers.factory import build_provider
-from providers.funasr_local import FunASRLocalProvider
+from src.services.providers.factory import build_provider
+from src.services.providers.funasr_local import FunASRLocalProvider
 
 
 @pytest.mark.asyncio
