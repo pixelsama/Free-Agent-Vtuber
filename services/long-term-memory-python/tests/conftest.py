@@ -1,70 +1,64 @@
 """
 测试配置和fixture定义
 """
+
 import asyncio
 import json
-from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock
-from pathlib import Path
 import sys
+from datetime import datetime
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 # 添加src目录到Python路径
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.models.memory import MemoryCategory, MemoryMetadata, UserMemory, UserProfile
-from src.models.messages import MemoryUpdateMessage, LTMRequest, LTMResponse
+from src.models.messages import LTMRequest, LTMResponse, MemoryUpdateMessage
 
 
 @pytest.fixture
 def test_config():
     """测试配置"""
     return {
-        "redis": {
-            "host": "localhost",
-            "port": 6379,
-            "db": 1  # 使用测试数据库
-        },
+        "redis": {"host": "localhost", "port": 6379, "db": 1},  # 使用测试数据库
         "qdrant": {
             "host": "localhost",
             "port": 6333,
-            "collection_name": "test_mem0_collection"
+            "collection_name": "test_mem0_collection",
         },
-        "mem0": {
-            "config_path": "config/mem0_config.yaml"
-        },
+        "mem0": {"config_path": "config/mem0_config.yaml"},
         "channels": {
             "memory_updates": "memory_updates",
-            "ltm_responses": "ltm_responses"
+            "ltm_responses": "ltm_responses",
         },
-        "queues": {
-            "ltm_requests": "ltm_requests"
-        }
+        "queues": {"ltm_requests": "ltm_requests"},
     }
 
 
 @pytest.fixture
 def mock_redis():
     """Mock Redis客户端"""
-    from unittest.mock import Mock, AsyncMock
-    
+    from unittest.mock import AsyncMock, Mock
+
     mock = AsyncMock()
     mock.get.return_value = None
     mock.setex.return_value = True
     mock.publish.return_value = 1
     mock.lpush.return_value = 1
     mock.brpop.return_value = None
-    
+
     # Mock pubsub behavior
     from unittest.mock import Mock
+
     mock_pubsub_instance = Mock()
     mock_pubsub_instance.subscribe = AsyncMock()
     mock_pubsub_instance.unsubscribe = AsyncMock()
     mock_pubsub_instance.close = AsyncMock()
     # listen()应该返回一个可以被async for迭代的对象
     mock_pubsub_instance.listen = Mock()
-    
+
     # pubsub()是同步方法，使用Mock而不是AsyncMock
     mock.pubsub = Mock(return_value=mock_pubsub_instance)
     return mock
@@ -99,7 +93,7 @@ def sample_memory_metadata():
         confidence=0.8,
         source="conversation",
         tags=["动漫", "娱乐"],
-        created_at=datetime.now()
+        created_at=datetime.now(),
     )
 
 
@@ -109,7 +103,7 @@ def sample_user_memory(sample_memory_metadata):
     return UserMemory(
         user_id="test_user_001",
         content="用户喜欢看动漫，特别是《进击的巨人》",
-        metadata=sample_memory_metadata
+        metadata=sample_memory_metadata,
     )
 
 
@@ -123,7 +117,7 @@ def sample_user_profile():
         habits=["晚上聊天", "喜欢分享"],
         important_events=["2024年生日"],
         memory_count=5,
-        last_updated=datetime.now()
+        last_updated=datetime.now(),
     )
 
 
@@ -135,7 +129,7 @@ def sample_memory_update_message():
         content="我最喜欢的动漫是《进击的巨人》",
         source="conversation",
         timestamp=1234567890,
-        meta={"session_id": "session_001"}
+        meta={"session_id": "session_001"},
     )
 
 
@@ -146,9 +140,5 @@ def sample_ltm_request():
         request_id="req_1234567890",
         type="search",
         user_id="test_user_001",
-        data={
-            "query": "用户喜欢什么动漫",
-            "limit": 5
-        }
+        data={"query": "用户喜欢什么动漫", "limit": 5},
     )
-
