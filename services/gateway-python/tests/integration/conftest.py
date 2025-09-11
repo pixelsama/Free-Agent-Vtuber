@@ -70,6 +70,7 @@ def gateway_server():
     """启动网关服务"""
     os.environ["INPUT_HANDLER_URL"] = "ws://127.0.0.1:8001"
     os.environ["OUTPUT_HANDLER_URL"] = "ws://127.0.0.1:8001"
+    original_services = main.BACKEND_SERVICES.copy()
     main.BACKEND_SERVICES["input"] = os.environ["INPUT_HANDLER_URL"]
     main.BACKEND_SERVICES["output"] = os.environ["OUTPUT_HANDLER_URL"]
 
@@ -93,3 +94,5 @@ def gateway_server():
         del os.environ["INPUT_HANDLER_URL"]
     if "OUTPUT_HANDLER_URL" in os.environ:
         del os.environ["OUTPUT_HANDLER_URL"]
+    main.BACKEND_SERVICES.clear()
+    main.BACKEND_SERVICES.update(original_services)
