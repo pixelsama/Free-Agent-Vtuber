@@ -34,7 +34,7 @@ def test_asr_route_pushes_to_redis_list(client, monkeypatch):
             pushed.append((queue, message))
 
     # 替换 asr_routes.get_redis 返回 DummyRedis
-    asr_routes = importlib.import_module("asr_routes")
+    asr_routes = importlib.import_module("src.services.asr_routes")
     monkeypatch.setattr(asr_routes, "get_redis", lambda: DummyRedis())
 
     abs_path = "/tmp/file.wav"

@@ -8,8 +8,8 @@ import pytest
 
 # 以模块目录为根运行测试：pytest 从 services/asr-python 执行
 # 从包内模块导入（Phase 2 重构后）
-from asr_service import RedisClient, worker_loop
-from providers.factory import FakeProvider, build_provider
+from src.services.asr_service import RedisClient, worker_loop
+from src.services.providers.factory import FakeProvider, build_provider
 
 @pytest.mark.asyncio
 async def test_build_provider_fake():

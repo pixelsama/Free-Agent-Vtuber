@@ -1,13 +1,13 @@
 import asyncio
 import signal
 import os
-from tts_service import TTSService
+from src.services.tts_service import TTSService
 
 async def main():
     """
     运行 TTS 服务的主函数。
     """
-    config_path = os.path.join(os.path.dirname(__file__), 'config.json')
+    config_path = os.path.join(os.path.dirname(__file__), 'config', 'config.json')
     service = TTSService(config_path)
 
     loop = asyncio.get_running_loop()
