@@ -11,7 +11,7 @@ Mem0框架客户端 - TDD循环2重构优化版本
 import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from pathlib import Path
 
@@ -67,13 +67,13 @@ class Mem0Service:
                 if not Path(config_path).exists():
                     self.logger.warning(f"Mem0配置文件不存在: {config_path}，使用默认配置")
                     mem0_config = self._get_default_config()
-                    self._client = await asyncio.get_event_loop().run_in_executor(
+                    self._client = await asyncio.get_running_loop().run_in_executor(
                         self._executor,
                         Memory.from_config,
                         mem0_config
                     )
                 else:
-                    self._client = await asyncio.get_event_loop().run_in_executor(
+                    self._client = await asyncio.get_running_loop().run_in_executor(
                         self._executor,
                         Memory.from_config,
                         config_path
@@ -143,7 +143,7 @@ class Mem0Service:
             metadata = data.get("metadata", {})
             
             # 在专用线程池中调用Mem0 API
-            result = await asyncio.get_event_loop().run_in_executor(
+            result = await asyncio.get_running_loop().run_in_executor(
                 self._executor,
                 self._client.add,
                 content,
@@ -161,6 +161,14 @@ class Mem0Service:
         except Exception as e:
             self.logger.error(f"添加记忆失败 (用户: {data.get('user_id', 'unknown')}): {e}")
             raise Mem0OperationError(f"添加记忆失败: {e}")
+
+    # 兼容旧调用：某些模块使用 mem0_client.add(messages=..., user_id=..., metadata=...)
+    async def add(self, messages: str, user_id: str, metadata: Optional[Dict[str, Any]] = None) -> str:
+        return await self.add_memory({
+            "content": messages,
+            "user_id": user_id,
+            "metadata": metadata or {}
+        })
     
     async def search(self, query: str, user_id: str, limit: int = 5) -> List[Dict[str, Any]]:
         """搜索相关记忆"""
@@ -176,7 +184,7 @@ class Mem0Service:
                 raise ValueError("限制数量必须大于0")
             
             # 在线程池中调用Mem0 API
-            results = await asyncio.get_event_loop().run_in_executor(
+            results = await asyncio.get_running_loop().run_in_executor(
                 self._executor,
                 self._client.search,
                 query.strip(),
@@ -207,7 +215,7 @@ class Mem0Service:
                 raise ValueError("用户ID不能为空")
             
             # 在线程池中调用Mem0 API
-            results = await asyncio.get_event_loop().run_in_executor(
+            results = await asyncio.get_running_loop().run_in_executor(
                 self._executor,
                 self._client.get_all,
                 user_id.strip()
@@ -238,7 +246,7 @@ class Mem0Service:
                 raise ValueError("更新数据必须是字典")
             
             # 在线程池中调用Mem0 API
-            result = await asyncio.get_event_loop().run_in_executor(
+            result = await asyncio.get_running_loop().run_in_executor(
                 self._executor,
                 self._client.update,
                 memory_id.strip(),
@@ -264,7 +272,7 @@ class Mem0Service:
                 raise ValueError("记忆ID不能为空")
             
             # 在线程池中调用Mem0 API
-            result = await asyncio.get_event_loop().run_in_executor(
+            result = await asyncio.get_running_loop().run_in_executor(
                 self._executor,
                 self._client.delete,
                 memory_id.strip()
@@ -302,9 +310,9 @@ class Mem0Service:
                 try:
                     created_at = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
                 except ValueError:
-                    created_at = datetime.now()
+                    created_at = datetime.now(timezone.utc)
             else:
-                created_at = datetime.now()
+                created_at = datetime.now(timezone.utc)
             
             # 创建元数据对象
             metadata = MemoryMetadata(

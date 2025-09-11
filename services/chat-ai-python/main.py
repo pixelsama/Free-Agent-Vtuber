@@ -41,12 +41,12 @@ class AIProcessor:
         self.system_prompt = config.get("ai", {}).get("system_prompt", "")
         self.fallback_to_rules = config.get("ai", {}).get("fallback_to_rules", True)
         
-    async def process_text(self, text: str) -> str:
+    async def process_text(self, text: str, ltm_context: Optional[list] = None) -> str:
         """处理文本输入，返回AI回复"""
         try:
             # 首先尝试使用真实AI
             if ai_client:
-                return await self._process_with_ai(text)
+                return await self._process_with_ai(text, ltm_context=ltm_context)
             elif self.fallback_to_rules:
                 logger.warning("AI client not available, falling back to rules")
                 return self._process_with_rules(text)
@@ -61,7 +61,7 @@ class AIProcessor:
             else:
                 return "抱歉，我遇到了一些技术问题。请稍后再试！"
     
-    async def _process_with_ai(self, text: str) -> str:
+    async def _process_with_ai(self, text: str, ltm_context: Optional[list] = None) -> str:
         """使用真实AI处理文本"""
         try:
             ai_config = config.get("ai", {})
@@ -76,6 +76,27 @@ class AIProcessor:
             for msg in context:
                 role = "user" if msg["source"] == "user" else "assistant"
                 messages.append({"role": role, "content": msg["content"]})
+
+            # 注入长期记忆检索结果（若有）
+            if ltm_context:
+                try:
+                    snippets = []
+                    for i, mem in enumerate(ltm_context[:5], start=1):
+                        content = (
+                            (mem.get("content") if isinstance(mem, dict) else None)
+                            or (mem.get("memory") if isinstance(mem, dict) else None)
+                            or str(mem)
+                        )
+                        if content:
+                            snippets.append(f"{i}) {content}")
+                    if snippets:
+                        joined = "\n".join(snippets)
+                        messages.append({
+                            "role": "system",
+                            "content": f"Relevant memories for context:\n{joined}"
+                        })
+                except Exception as e:
+                    logger.warning(f"Failed to inject LTM context: {e}")
             
             # 添加当前用户消息
             messages.append({"role": "user", "content": text})
@@ -205,8 +226,11 @@ class TaskProcessor:
                 logger.error(f"Could not retrieve content for message {message_id}")
                 return
             
-            # AI处理（使用全局记忆）
-            response_text = await self.ai_processor.process_text(input_text)
+            # 如启用LTM，检索相关记忆用于增强提示词
+            ltm_context = await fetch_ltm_context(user_id, input_text)
+
+            # AI处理（结合全局记忆 + LTM检索）
+            response_text = await self.ai_processor.process_text(input_text, ltm_context=ltm_context)
             
             # 发布AI响应到记忆模块
             await self._publish_ai_response(user_id, response_text, message_id)
@@ -270,7 +294,7 @@ class TaskProcessor:
                 "user_id": user_id,
                 "text": response_text,
                 "original_message_id": original_message_id,
-                "timestamp": asyncio.get_event_loop().time()
+                "timestamp": asyncio.get_running_loop().time()
             }
             
             # 发布到AI响应频道，供记忆模块监听
@@ -456,6 +480,71 @@ async def cleanup():
         await ai_client.close()
     logger.info("AI Processor shutdown")
 
+async def fetch_ltm_context(user_id: str, query: str) -> list:
+    """向长期记忆服务请求相关记忆，超时则返回空列表（模块级帮助函数）"""
+    try:
+        if not redis_client:
+            return []
+
+        enable = os.getenv("ENABLE_LTM", "false").lower() in {"1", "true", "yes", "on"}
+        if not enable:
+            return []
+
+        import uuid
+
+        queue = os.getenv("LTM_REQUESTS_QUEUE", "ltm_requests")
+        resp_channel = os.getenv("LTM_RESPONSES_CHANNEL", "ltm_responses")
+        timeout_ms = int(os.getenv("LTM_SEARCH_TIMEOUT_MS", "600"))
+
+        request_id = f"req-{uuid.uuid4()}"
+        req = {
+            "request_id": request_id,
+            "type": "search",
+            "user_id": user_id,
+            "data": {"query": query, "limit": 5}
+        }
+
+        # 发送请求
+        await redis_client.lpush(queue, json.dumps(req, ensure_ascii=False))
+
+        # 等待响应（短时订阅 + 相关性过滤）
+        pubsub = redis_client.pubsub()
+        await pubsub.subscribe(resp_channel)
+
+        try:
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + (timeout_ms / 1000.0)
+            while loop.time() < deadline:
+                msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=0.05)
+                if not msg:
+                    await asyncio.sleep(0.02)
+                    continue
+                if msg.get("type") != "message":
+                    continue
+                try:
+                    payload = json.loads(msg.get("data"))
+                    if payload.get("request_id") == request_id and payload.get("user_id") == user_id:
+                        if payload.get("success", False):
+                            return payload.get("memories", []) or []
+                        return []
+                except Exception:
+                    continue
+        finally:
+            try:
+                await pubsub.unsubscribe(resp_channel)
+            except Exception:
+                pass
+            try:
+                await pubsub.close()
+            except Exception:
+                pass
+
+        # 超时
+        return []
+    except Exception as e:
+        logger.warning(f"LTM context fetch failed: {e}")
+        return []
+
 async def memory_update_listener():
     """监听记忆更新事件"""
     if not redis_client:
@@ -469,24 +558,33 @@ async def memory_update_listener():
     
     pubsub = redis_client.pubsub()
     await pubsub.subscribe(memory_channel)
-    
-    async for message in pubsub.listen():
-        if message["type"] == "message":
-            try:
-                event_data = json.loads(message["data"])
-                
-                # 只处理需要AI响应的事件
-                if event_data.get("require_ai_response", False) and event_data.get("source") == "user":
-                    logger.info(f"Received memory update event: {event_data}")
-                    
-                    # 异步处理记忆更新事件
-                    asyncio.create_task(processor.process_memory_update(event_data))
-                
-            except json.JSONDecodeError as e:
-                logger.error(f"Invalid JSON in memory update: {e}")
-            except Exception as e:
-                logger.error(f"Error in memory update listener: {e}")
-                await asyncio.sleep(1)
+    try:
+        async for message in pubsub.listen():
+            if message["type"] == "message":
+                try:
+                    event_data = json.loads(message["data"])
+                    # 只处理需要AI响应的事件
+                    if event_data.get("require_ai_response", False) and event_data.get("source") == "user":
+                        logger.info(f"Received memory update event: {event_data}")
+                        # 异步处理记忆更新事件
+                        asyncio.create_task(processor.process_memory_update(event_data))
+                except json.JSONDecodeError as e:
+                    logger.error(f"Invalid JSON in memory update: {e}")
+                except Exception as e:
+                    logger.error(f"Error in memory update listener: {e}")
+                    await asyncio.sleep(1)
+    except asyncio.CancelledError:
+        logger.info("memory_update_listener cancelled; cleaning up pubsub")
+        raise
+    finally:
+        try:
+            await pubsub.unsubscribe(memory_channel)
+        except Exception:
+            pass
+        try:
+            await pubsub.close()
+        except Exception:
+            pass
 
 async def main():
     """主函数"""

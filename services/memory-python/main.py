@@ -207,14 +207,26 @@ class ResponseListener:
         await pubsub.subscribe("ai_responses")
         
         logger.info("Started listening for AI responses")
-        
-        async for message in pubsub.listen():
-            if message["type"] == "message":
-                try:
-                    response_data = json.loads(message["data"])
-                    await self._handle_ai_response(response_data)
-                except Exception as e:
-                    logger.error(f"Error handling AI response: {e}")
+        try:
+            async for message in pubsub.listen():
+                if message["type"] == "message":
+                    try:
+                        response_data = json.loads(message["data"])
+                        await self._handle_ai_response(response_data)
+                    except Exception as e:
+                        logger.error(f"Error handling AI response: {e}")
+        except asyncio.CancelledError:
+            logger.info("AI response listener cancelled; cleaning up pubsub")
+            raise
+        finally:
+            try:
+                await pubsub.unsubscribe("ai_responses")
+            except Exception:
+                pass
+            try:
+                await pubsub.close()
+            except Exception:
+                pass
     
     async def _handle_ai_response(self, response_data: dict):
         """处理AI响应数据"""
