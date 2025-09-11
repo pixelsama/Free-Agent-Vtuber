@@ -2,6 +2,7 @@
 长期记忆服务入口点
 """
 import asyncio
+import contextlib
 import json
 import logging
 import os
@@ -36,72 +37,89 @@ async def _handle_memory_updates(redis_client: redis.Redis, mem0: Mem0Service, c
     pubsub = redis_client.pubsub()
     await pubsub.subscribe(channel_name)
     logger.info(f"LTM subscribed to channel: {channel_name}")
-    async for message in pubsub.listen():
-        if message.get("type") != "message":
-            continue
-        try:
-            data = json.loads(message.get("data"))
-            user_id = data.get("user_id")
-            content = data.get("content")
-            if not user_id or not content:
+    try:
+        async for message in pubsub.listen():
+            if message.get("type") != "message":
                 continue
-            metadata = {
-                "source": data.get("source"),
-                "timestamp": data.get("timestamp"),
-                "session_id": (data.get("meta") or {}).get("session_id") if isinstance(data.get("meta"), dict) else None,
-            }
-            await mem0.add_memory({"user_id": user_id, "content": content, "metadata": metadata})
-        except Exception as e:
-            logger.error(f"Failed to index memory update: {e}")
+            try:
+                data = json.loads(message.get("data"))
+                user_id = data.get("user_id")
+                content = data.get("content")
+                if not user_id or not content:
+                    continue
+                metadata = {
+                    "source": data.get("source"),
+                    "timestamp": data.get("timestamp"),
+                    "session_id": (data.get("meta") or {}).get("session_id") if isinstance(data.get("meta"), dict) else None,
+                }
+                await mem0.add_memory({"user_id": user_id, "content": content, "metadata": metadata})
+            except Exception as e:
+                logger.error(f"Failed to index memory update: {e}")
+    except asyncio.CancelledError:
+        logger.info("_handle_memory_updates cancelled; cleaning up pubsub")
+        raise
+    finally:
+        try:
+            await pubsub.unsubscribe(channel_name)
+        except Exception:
+            pass
+        try:
+            await pubsub.close()
+        except Exception:
+            pass
 
 
 async def _handle_ltm_requests(redis_client: redis.Redis, mem0: Mem0Service, queue_name: str, resp_channel: str):
     logger = logging.getLogger(__name__)
     logger.info(f"LTM consuming queue: {queue_name}, responding on: {resp_channel}")
-    while True:
-        try:
-            item = await redis_client.brpop(queue_name, timeout=1)
-            if not item:
-                continue
-            _q, raw = item
+    try:
+        while True:
             try:
-                req = json.loads(raw)
-            except Exception:
-                logger.warning("Invalid JSON in ltm_requests, skipping")
-                continue
+                item = await redis_client.brpop(queue_name, timeout=1)
+                if not item:
+                    continue
+                _q, raw = item
+                try:
+                    req = json.loads(raw)
+                except Exception:
+                    logger.warning("Invalid JSON in ltm_requests, skipping")
+                    continue
 
-            request_id = req.get("request_id")
-            user_id = req.get("user_id")
-            rtype = req.get("type")
-            data = req.get("data") or {}
+                request_id = req.get("request_id")
+                user_id = req.get("user_id")
+                rtype = req.get("type")
+                data = req.get("data") or {}
 
-            resp: Dict[str, Any] = {"request_id": request_id, "user_id": user_id, "success": True}
-            try:
-                if rtype == "search":
-                    query = data.get("query", "")
-                    limit = int((data.get("limit") or 5))
-                    memories = await mem0.search(query=query, user_id=user_id, limit=limit)
-                    resp["memories"] = memories
-                elif rtype == "add":
-                    content = data.get("content", "")
-                    metadata = data.get("metadata") or {}
-                    mid = await mem0.add_memory({"user_id": user_id, "content": content, "metadata": metadata})
-                    resp["memories"] = [{"id": mid, "content": content}]
-                elif rtype == "profile_get":
-                    # Placeholder: return empty profile until implemented
-                    resp["user_profile"] = {}
-                elif rtype == "profile_update":
-                    resp["user_profile"] = data.get("updates") or {}
-                else:
-                    resp.update({"success": False, "error": f"unknown_request_type:{rtype}"})
+                resp: Dict[str, Any] = {"request_id": request_id, "user_id": user_id, "success": True}
+                try:
+                    if rtype == "search":
+                        query = data.get("query", "")
+                        limit = int((data.get("limit") or 5))
+                        memories = await mem0.search(query=query, user_id=user_id, limit=limit)
+                        resp["memories"] = memories
+                    elif rtype == "add":
+                        content = data.get("content", "")
+                        metadata = data.get("metadata") or {}
+                        mid = await mem0.add_memory({"user_id": user_id, "content": content, "metadata": metadata})
+                        resp["memories"] = [{"id": mid, "content": content}]
+                    elif rtype == "profile_get":
+                        # Placeholder: return empty profile until implemented
+                        resp["user_profile"] = {}
+                    elif rtype == "profile_update":
+                        resp["user_profile"] = data.get("updates") or {}
+                    else:
+                        resp.update({"success": False, "error": f"unknown_request_type:{rtype}"})
+                except Exception as e:
+                    resp.update({"success": False, "error": str(e)})
+
+                # publish response
+                await redis_client.publish(resp_channel, json.dumps(resp, ensure_ascii=False))
             except Exception as e:
-                resp.update({"success": False, "error": str(e)})
-
-            # publish response
-            await redis_client.publish(resp_channel, json.dumps(resp, ensure_ascii=False))
-        except Exception as e:
-            logger.error(f"LTM request loop error: {e}")
-            await asyncio.sleep(0.1)
+                logger.error(f"LTM request loop error: {e}")
+                await asyncio.sleep(0.1)
+    except asyncio.CancelledError:
+        logger.info("_handle_ltm_requests cancelled")
+        raise
 
 
 async def main():
@@ -128,10 +146,20 @@ async def main():
 
         logger.info("服务初始化完成，开始监听消息…")
 
-        await asyncio.gather(
-            _handle_memory_updates(redis_client, mem0, memory_updates_ch),
-            _handle_ltm_requests(redis_client, mem0, ltm_requests_q, ltm_responses_ch),
-        )
+        task_updates = asyncio.create_task(_handle_memory_updates(redis_client, mem0, memory_updates_ch))
+        task_requests = asyncio.create_task(_handle_ltm_requests(redis_client, mem0, ltm_requests_q, ltm_responses_ch))
+
+        try:
+            await asyncio.gather(task_updates, task_requests)
+        except asyncio.CancelledError:
+            logger.info("Main cancelled; propagating to workers")
+            task_updates.cancel()
+            task_requests.cancel()
+            with contextlib.suppress(Exception):
+                await task_updates
+            with contextlib.suppress(Exception):
+                await task_requests
+            raise
             
     except KeyboardInterrupt:
         logger.info("接收到停止信号，正在关闭服务...")

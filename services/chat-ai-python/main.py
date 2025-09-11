@@ -294,7 +294,7 @@ class TaskProcessor:
                 "user_id": user_id,
                 "text": response_text,
                 "original_message_id": original_message_id,
-                "timestamp": asyncio.get_event_loop().time()
+                "timestamp": asyncio.get_running_loop().time()
             }
             
             # 发布到AI响应频道，供记忆模块监听
@@ -512,8 +512,9 @@ async def fetch_ltm_context(user_id: str, query: str) -> list:
         await pubsub.subscribe(resp_channel)
 
         try:
-            deadline = asyncio.get_event_loop().time() + (timeout_ms / 1000.0)
-            while asyncio.get_event_loop().time() < deadline:
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + (timeout_ms / 1000.0)
+            while loop.time() < deadline:
                 msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=0.05)
                 if not msg:
                     await asyncio.sleep(0.02)
@@ -557,24 +558,33 @@ async def memory_update_listener():
     
     pubsub = redis_client.pubsub()
     await pubsub.subscribe(memory_channel)
-    
-    async for message in pubsub.listen():
-        if message["type"] == "message":
-            try:
-                event_data = json.loads(message["data"])
-                
-                # 只处理需要AI响应的事件
-                if event_data.get("require_ai_response", False) and event_data.get("source") == "user":
-                    logger.info(f"Received memory update event: {event_data}")
-                    
-                    # 异步处理记忆更新事件
-                    asyncio.create_task(processor.process_memory_update(event_data))
-                
-            except json.JSONDecodeError as e:
-                logger.error(f"Invalid JSON in memory update: {e}")
-            except Exception as e:
-                logger.error(f"Error in memory update listener: {e}")
-                await asyncio.sleep(1)
+    try:
+        async for message in pubsub.listen():
+            if message["type"] == "message":
+                try:
+                    event_data = json.loads(message["data"])
+                    # 只处理需要AI响应的事件
+                    if event_data.get("require_ai_response", False) and event_data.get("source") == "user":
+                        logger.info(f"Received memory update event: {event_data}")
+                        # 异步处理记忆更新事件
+                        asyncio.create_task(processor.process_memory_update(event_data))
+                except json.JSONDecodeError as e:
+                    logger.error(f"Invalid JSON in memory update: {e}")
+                except Exception as e:
+                    logger.error(f"Error in memory update listener: {e}")
+                    await asyncio.sleep(1)
+    except asyncio.CancelledError:
+        logger.info("memory_update_listener cancelled; cleaning up pubsub")
+        raise
+    finally:
+        try:
+            await pubsub.unsubscribe(memory_channel)
+        except Exception:
+            pass
+        try:
+            await pubsub.close()
+        except Exception:
+            pass
 
 async def main():
     """主函数"""
