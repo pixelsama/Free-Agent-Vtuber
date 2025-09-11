@@ -136,7 +136,9 @@ jobs:
           export REDIS_HOST=localhost
           export REDIS_PORT=6379
           # 检查是否有测试文件存在再运行
-          if [ -d "tests" ] || [ -f "test_*.py" ] || [ -f "*_test.py" ]; then
+          if [ "${{ matrix.service }}" = "chat-ai-python" ]; then
+            pytest tests/integration -q
+          elif [ -d "tests" ] || [ -f "test_*.py" ] || [ -f "*_test.py" ]; then
             pytest -v
           else
             echo "No tests found for ${{ matrix.service }}, skipping test execution"
