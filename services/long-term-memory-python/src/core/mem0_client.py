@@ -161,6 +161,14 @@ class Mem0Service:
         except Exception as e:
             self.logger.error(f"添加记忆失败 (用户: {data.get('user_id', 'unknown')}): {e}")
             raise Mem0OperationError(f"添加记忆失败: {e}")
+
+    # 兼容旧调用：某些模块使用 mem0_client.add(messages=..., user_id=..., metadata=...)
+    async def add(self, messages: str, user_id: str, metadata: Optional[Dict[str, Any]] = None) -> str:
+        return await self.add_memory({
+            "content": messages,
+            "user_id": user_id,
+            "metadata": metadata or {}
+        })
     
     async def search(self, query: str, user_id: str, limit: int = 5) -> List[Dict[str, Any]]:
         """搜索相关记忆"""

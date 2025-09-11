@@ -58,9 +58,8 @@ class MemoryManager:
             if self.memory_config.get("enable_global_context", True):
                 await self._store_to_global_memory(message_data)
             
-            # 发布记忆更新事件
-            if require_ai_response:
-                await self._publish_memory_update(message_data)
+            # 发布记忆更新事件（用户与AI消息均发布，监听方自行过滤）
+            await self._publish_memory_update(message_data)
             
             logger.info(f"Stored message {message_id} from {source}")
             return message_id
