@@ -50,7 +50,18 @@ jobs:
       # 第2.5步：启动服务依赖
       - name: Start service dependencies
         if: ${{ hashFiles(format('services/{0}/docker-compose.ci.yml', matrix.service)) != '' }}
-        run: docker compose -f services/${{ matrix.service }}/docker-compose.ci.yml up -d
+        run: |
+          docker compose -f services/${{ matrix.service }}/docker-compose.ci.yml up -d
+          if docker compose -f services/${{ matrix.service }}/docker-compose.ci.yml ps | grep -q redis; then
+            until docker compose -f services/${{ matrix.service }}/docker-compose.ci.yml exec -T redis redis-cli ping >/dev/null 2>&1; do
+              sleep 1
+            done
+          fi
+          if docker compose -f services/${{ matrix.service }}/docker-compose.ci.yml ps | grep -q postgres; then
+            until docker compose -f services/${{ matrix.service }}/docker-compose.ci.yml exec -T postgres pg_isready >/dev/null 2>&1; do
+              sleep 1
+            done
+          fi
 
       # 第3步：安装依赖
       # ${{ matrix.service }} 会自动被替换成上面 matrix 中定义的服务名称
