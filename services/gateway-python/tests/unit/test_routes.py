@@ -8,7 +8,8 @@ from main import active_connections, app
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    with TestClient(app) as c:
+        yield c
 
 
 def test_root_endpoint(client):

@@ -1,3 +1,5 @@
+# 注意：测试在模块目录下运行：cd services/gateway-python && pytest
+import importlib
 import json
 import os
 import types
@@ -5,8 +7,6 @@ import types
 import pytest
 from fastapi.testclient import TestClient
 
-# 注意：测试在模块目录下运行：cd services/gateway-python && pytest
-import importlib
 
 @pytest.fixture()
 def app():
@@ -14,9 +14,12 @@ def app():
     main = importlib.import_module("main")
     return main.app
 
+
 @pytest.fixture()
 def client(app):
-    return TestClient(app)
+    with TestClient(app) as c:
+        yield c
+
 
 def test_asr_route_requires_absolute_path(client, monkeypatch):
     # 传递相对路径应报 400
@@ -24,6 +27,7 @@ def test_asr_route_requires_absolute_path(client, monkeypatch):
     assert resp.status_code == 400
     data = resp.json()
     assert "path must be absolute" in data.get("error", "")
+
 
 def test_asr_route_pushes_to_redis_list(client, monkeypatch):
     # 准备一个假的 Redis 客户端来捕获 lpush 调用
