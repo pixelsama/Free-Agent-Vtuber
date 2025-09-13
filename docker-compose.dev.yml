@@ -143,9 +143,9 @@ services:
       - REDIS_PORT=6379
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - PYTHONPATH=/app
-      - ENABLE_LTM=true
-      - LTM_REQUESTS_QUEUE=ltm_requests
-      - LTM_RESPONSES_CHANNEL=ltm_responses
+      - ENABLE_LTM=${ENABLE_LTM:-true}
+      - LTM_REQUESTS_QUEUE=${LTM_REQUESTS_QUEUE:-ltm_requests}
+      - LTM_RESPONSES_CHANNEL=${LTM_RESPONSES_CHANNEL:-ltm_responses}
     volumes:
       - ./services/chat-ai-python:/app
       - ./utils:/app/shared_utils
@@ -153,7 +153,6 @@ services:
     restart: "no"
     depends_on:
       - redis
-      - long-term-memory
 
   # 输出处理服务
   output-handler:
