@@ -45,10 +45,15 @@ services:
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ENABLE_LTM=${ENABLE_LTM:-true}
+      - LTM_REQUESTS_QUEUE=${LTM_REQUESTS_QUEUE:-ltm_requests}
+      - LTM_RESPONSES_CHANNEL=${LTM_RESPONSES_CHANNEL:-ltm_responses}
     restart: unless-stopped
     depends_on:
       redis:
         condition: service_healthy
+      long-term-memory:
+        condition: service_started
 
   # 网关服务
   gateway:

@@ -67,6 +67,8 @@ cd Free-Agent-Vtuber
 cp .env.example .env
 ```
 
+`.env` 默认开启 `ENABLE_LTM=true`，如需禁用长期记忆可将其设为 `false`。
+
 ### Docker 一键启动
 
 ```bash
@@ -141,7 +143,7 @@ pytest -q
 
 #### 未来展望
 
-* [ ] **长期记忆模块**：集成数据库，让 Agent 拥有记忆
+* [x] **长期记忆模块**：集成数据库，让 Agent 拥有记忆
 * [ ] **情感感知模块**：通过文本分析赋予 Agent 情感表达能力
 * [ ] **视觉感知模块**：让 Agent 能够 "看到" 屏幕或摄像头
 * [ ] **工具使用模块**：允许 Agent 调用外部 API（天气、搜索等）
