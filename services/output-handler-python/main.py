@@ -339,8 +339,7 @@ async def control_stop(payload: Dict[str, str]):
         await ingest_ws.send_text(json.dumps({"type": "CONTROL", "action": "STOP", "sessionId": session_id}))
         return {"ok": True}
     except Exception as e:
-        logger.error(f"Failed to send STOP upstream: {e}
-")
+        logger.error(f"Failed to send STOP upstream: {e}")
         raise HTTPException(status_code=500, detail="failed to send stop")
 
 @app.get("/")
