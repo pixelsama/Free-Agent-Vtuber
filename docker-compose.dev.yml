@@ -35,6 +35,25 @@ services:
     depends_on:
       - redis
 
+  # 同步主链路：dialog-engine（M1）
+  dialog-engine:
+    build:
+      context: ./services/dialog-engine
+      dockerfile: Dockerfile
+    container_name: aivtuber-dialog-engine-dev
+    environment:
+      - PORT=8100
+      - PYTHONPATH=/app
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "8100:8100"
+    volumes:
+      - ./services/dialog-engine:/app/services/dialog-engine
+    restart: "no"
+    depends_on:
+      - redis
+
   # ASR语音识别服务
   asr:
     build:
