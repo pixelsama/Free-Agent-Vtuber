@@ -83,6 +83,8 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - PYTHONPATH=/app
+      - ENABLE_SYNC_CORE=${ENABLE_SYNC_CORE:-false}
+      - DIALOG_ENGINE_URL=http://dialog-engine:8100
     volumes:
       - ./services/input-handler-python:/app
       - temp_files:/tmp/aivtuber_tasks
