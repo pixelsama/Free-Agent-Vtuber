@@ -46,6 +46,8 @@ services:
       - PYTHONPATH=/app
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - SYNC_TTS_STREAMING=${SYNC_TTS_STREAMING:-false}
+      - OUTPUT_INGEST_WS_URL=ws://output-handler:8002/ws/ingest/tts
     ports:
       - "8100:8100"
     volumes:

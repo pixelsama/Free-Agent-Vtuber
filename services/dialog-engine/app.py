@@ -8,10 +8,12 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
 
 from .chat_service import ChatService
+from .tts_streamer import stream_text as tts_stream_text
 
 
 app = FastAPI()
 chat_service = ChatService()
+SYNC_TTS_STREAMING = os.getenv("SYNC_TTS_STREAMING", "false").lower() in {"1", "true", "yes", "on"}
 
 
 @app.get("/health")
@@ -60,8 +62,28 @@ async def chat_stream(request: Request) -> StreamingResponse:
     return StreamingResponse(event_generator(), media_type="text/event-stream", headers=headers)
 
 
+@app.post("/tts/mock")
+async def tts_mock(request: Request):
+    """M2: Trigger a mock TTS stream to Output's ingest WS for testing.
+
+    Body: {"sessionId": "...", "text": "..."}
+    Requires SYNC_TTS_STREAMING=true.
+    """
+    if not SYNC_TTS_STREAMING:
+        raise HTTPException(status_code=400, detail="SYNC_TTS_STREAMING disabled")
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid json")
+    session_id = body.get("sessionId")
+    text = body.get("text")
+    if not session_id or not isinstance(text, str):
+        raise HTTPException(status_code=400, detail="sessionId and text required")
+    await tts_stream_text(session_id=session_id, text=text)
+    return {"ok": True}
+
+
 if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run("services.dialog-engine.app:app", host="0.0.0.0", port=int(os.getenv("PORT", "8100")), reload=False)
-
