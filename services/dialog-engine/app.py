@@ -4,6 +4,8 @@ import os
 import time
 from typing import AsyncGenerator, Dict, Any
 
+import redis.asyncio as redis
+
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
 
@@ -133,7 +135,7 @@ async def _on_startup():
     if ENABLE_ASYNC_EXT:
         # best-effort Redis connection for outbox flusher
         try:
-            r = redis.asyncio.Redis(host=os.getenv("REDIS_HOST", "localhost"), port=int(os.getenv("REDIS_PORT", "6379")))
+            r = redis.Redis(host=os.getenv("REDIS_HOST", "localhost"), port=int(os.getenv("REDIS_PORT", "6379")))
             await r.ping()
             _flush_task = await outbox_start_flush(r, enabled=True)
         except Exception:
