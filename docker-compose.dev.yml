@@ -49,6 +49,9 @@ services:
       - REDIS_PORT=6379
       - SYNC_TTS_STREAMING=${SYNC_TTS_STREAMING:-false}
       - OUTPUT_INGEST_WS_URL=ws://output-handler:8002/ws/ingest/tts
+      # Mock TTS defaults (can be overridden in .env for STOP testing)
+      - MOCK_TTS_CHUNK_DELAY_MS=${MOCK_TTS_CHUNK_DELAY_MS:-200}
+      - MOCK_TTS_CHUNK_COUNT=${MOCK_TTS_CHUNK_COUNT:-50}
     ports:
       - "8100:8100"
     volumes:
