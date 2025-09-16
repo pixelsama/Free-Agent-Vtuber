@@ -12,7 +12,7 @@ from src.services.asr_routes import bp_asr as _flask_bp  # type: ignore
 from fastapi.middleware.wsgi import WSGIMiddleware
 from flask import Flask as _Flask  # shim for mounting Flask blueprint
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 import uvicorn
 
 # 配置日志
@@ -194,6 +194,24 @@ async def control_stop_proxy(payload: Dict[str, str]):
         except httpx.HTTPStatusError as e:
             from fastapi import HTTPException
             raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
+        except Exception as e:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=502, detail=f"proxy error: {e}")
+
+
+@app.get("/internal/output/health")
+async def output_health_proxy():
+    """Proxy Output Handler's /health for diagnostics via the gateway."""
+    target = f"{_output_http_base()}/health"
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        try:
+            resp = await client.get(target)
+            # Try parse JSON; fallback to text
+            try:
+                data = resp.json()
+            except ValueError:
+                data = {"status_code": resp.status_code, "body": resp.text}
+            return JSONResponse(status_code=resp.status_code, content=data)
         except Exception as e:
             from fastapi import HTTPException
             raise HTTPException(status_code=502, detail=f"proxy error: {e}")
