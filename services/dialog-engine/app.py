@@ -77,9 +77,12 @@ async def tts_mock(request: Request):
         raise HTTPException(status_code=400, detail="invalid json")
     session_id = body.get("sessionId")
     text = body.get("text")
+    # Optional overrides for testing stop timing
+    chunk_count = body.get("chunkCount")
+    delay_ms = body.get("chunkDelayMs")
     if not session_id or not isinstance(text, str):
         raise HTTPException(status_code=400, detail="sessionId and text required")
-    await tts_stream_text(session_id=session_id, text=text)
+    await tts_stream_text(session_id=session_id, text=text, chunk_count=chunk_count, delay_ms=delay_ms)
     return {"ok": True}
 
 
