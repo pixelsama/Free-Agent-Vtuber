@@ -283,6 +283,14 @@ output_handler = OutputHandler()
 async def websocket_output_endpoint(websocket: WebSocket, task_id: str):
     await output_handler.handle_connection(websocket, task_id)
 
+def _bool_env(name: str, default: str = "false") -> bool:
+    val = os.getenv(name, default).strip().lower()
+    return val in {"1", "true", "yes", "on"}
+
+STREAMING_ENABLED = _bool_env("SYNC_TTS_STREAMING", "false")
+BARGE_IN_ENABLED = _bool_env("SYNC_TTS_BARGE_IN", "false")
+
+
 @app.websocket("/ws/ingest/tts")
 async def websocket_ingest_tts(websocket: WebSocket):
     """Internal WS for dialog-engine to push TTS chunks and receive control.
@@ -291,6 +299,11 @@ async def websocket_ingest_tts(websocket: WebSocket):
     - {"type":"SPEECH_CHUNK","sessionId":"...","seq":n,"pcm":"<base64>","viseme":{...}}
     - {"type":"CONTROL","action":"END"|"STOP_ACK","sessionId":"..."}
     """
+    if not STREAMING_ENABLED:
+        # 拒绝建立推流通道（M1 保持禁用；M2 起可启用）
+        await websocket.accept()
+        await websocket.close(code=4403, reason="SYNC_TTS_STREAMING disabled")
+        return
     global ingest_ws
     await websocket.accept()
     ingest_ws = websocket
@@ -333,6 +346,8 @@ async def control_stop(payload: Dict[str, str]):
     session_id = payload.get("sessionId") if isinstance(payload, dict) else None
     if not session_id:
         raise HTTPException(status_code=400, detail="sessionId required")
+    if not BARGE_IN_ENABLED:
+        raise HTTPException(status_code=409, detail="SYNC_TTS_BARGE_IN disabled")
     if not ingest_ws:
         raise HTTPException(status_code=503, detail="ingest websocket not connected")
     try:
@@ -381,7 +396,9 @@ async def health_check():
     return {
         "status": "ok",
         "redis": redis_status,
-        "active_connections": len(active_connections)
+        "active_connections": len(active_connections),
+        "streaming_enabled": STREAMING_ENABLED,
+        "barge_in_enabled": BARGE_IN_ENABLED
     }
 
 if __name__ == "__main__":

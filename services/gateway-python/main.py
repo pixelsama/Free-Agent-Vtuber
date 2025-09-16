@@ -5,6 +5,8 @@ from contextlib import asynccontextmanager
 from typing import Dict
 
 import websockets
+import httpx
+from urllib.parse import urlparse, urlunparse
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from src.services.asr_routes import bp_asr as _flask_bp  # type: ignore
 from fastapi.middleware.wsgi import WSGIMiddleware
@@ -159,6 +161,42 @@ async def proxy_output(websocket: WebSocket, task_id: str):
     """代理输出WebSocket连接到output-handler服务"""
     backend_url = f"{BACKEND_SERVICES['output']}/ws/output/{task_id}"
     await proxy.proxy_websocket(websocket, backend_url, "output")
+
+
+def _output_http_base() -> str:
+    """Derive HTTP base URL for output-handler from WS URL env.
+
+    Converts ws://host:port -> http://host:port, wss:// -> https://
+    """
+    ws_url = BACKEND_SERVICES.get("output", "ws://localhost:8002")
+    parsed = urlparse(ws_url)
+    scheme = "https" if parsed.scheme == "wss" else "http"
+    http_parsed = parsed._replace(scheme=scheme, path="", params="", query="", fragment="")
+    return urlunparse(http_parsed).rstrip("/")
+
+
+@app.post("/control/stop")
+async def control_stop_proxy(payload: Dict[str, str]):
+    """Proxy STOP control to output-handler's /control/stop.
+
+    Body: {"sessionId": "<uuid>"}
+    """
+    session_id = payload.get("sessionId") if isinstance(payload, dict) else None
+    if not session_id:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="sessionId required")
+
+    target = f"{_output_http_base()}/control/stop"
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        try:
+            resp = await client.post(target, json={"sessionId": session_id})
+            return resp.json()
+        except httpx.HTTPStatusError as e:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
+        except Exception as e:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=502, detail=f"proxy error: {e}")
 
 @app.get("/")
 async def get():

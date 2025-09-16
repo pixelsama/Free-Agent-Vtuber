@@ -27,8 +27,9 @@ services:
       - PYTHONPATH=/app
       - FLASK_ENV=development
       - FLASK_DEBUG=1
-      - INPUT_HANDLER_URL=ws://input-handler:8001
-      - OUTPUT_HANDLER_URL=ws://output-handler:8002
+      # 支持通过 .env 覆盖，未提供时使用默认值
+      - INPUT_HANDLER_URL=${INPUT_HANDLER_URL:-ws://input-handler:8001}
+      - OUTPUT_HANDLER_URL=${OUTPUT_HANDLER_URL:-ws://output-handler:8002}
     volumes:
       - ./services/gateway-python:/app
     restart: "no"
@@ -187,6 +188,9 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - PYTHONPATH=/app
+      # Feature flags（可在 .env 覆盖）
+      - SYNC_TTS_STREAMING=${SYNC_TTS_STREAMING:-false}
+      - SYNC_TTS_BARGE_IN=${SYNC_TTS_BARGE_IN:-false}
     volumes:
       - ./services/output-handler-python:/app
       - temp_files:/tmp/aivtuber_tasks
