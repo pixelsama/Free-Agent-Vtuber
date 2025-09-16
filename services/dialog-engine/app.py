@@ -6,7 +6,7 @@ from typing import AsyncGenerator, Dict, Any
 
 import redis.asyncio as redis
 
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.responses import StreamingResponse, JSONResponse
 
 from .chat_service import ChatService
@@ -100,7 +100,7 @@ async def chat_stream(request: Request) -> StreamingResponse:
 
 
 @app.post("/tts/mock")
-async def tts_mock(request: Request):
+async def tts_mock(request: Request, background: BackgroundTasks):
     """M2: Trigger a mock TTS stream to Output's ingest WS for testing.
 
     Body: {"sessionId": "...", "text": "..."}
@@ -119,8 +119,8 @@ async def tts_mock(request: Request):
     delay_ms = body.get("chunkDelayMs")
     if not session_id or not isinstance(text, str):
         raise HTTPException(status_code=400, detail="sessionId and text required")
-    # 启动后台任务，立即返回，避免阻塞调用方
-    asyncio.create_task(tts_stream_text(session_id=session_id, text=text, chunk_count=chunk_count, delay_ms=delay_ms))
+    # 使用 FastAPI BackgroundTasks 启动后台任务，确保立即返回响应
+    background.add_task(tts_stream_text, session_id=session_id, text=text, chunk_count=chunk_count, delay_ms=delay_ms)
     return {"ok": True, "sessionId": session_id}
 
 

@@ -21,13 +21,13 @@ Requires: websockets, httpx
 """
 import argparse
 import asyncio
+import contextlib
 import json
-import statistics
 import time
 import uuid
 from dataclasses import dataclass
 from typing import List, Optional
-import contextlib
+from urllib.parse import urljoin, urlparse, urlunparse
 
 import httpx
 import websockets
@@ -63,44 +63,65 @@ async def one_run(
     quiet_ms: int,
 ) -> RunResult:
     session_id = str(uuid.uuid4())
-    ws_url = f"{gateway_base.replace('http', 'ws')}/ws/output/{session_id}"
-    stop_url = f"{gateway_base}/control/stop"
-    mock_url = f"{dialog_base}/tts/mock"
+    gateway_base = gateway_base.rstrip("/")
+    dialog_base = dialog_base.rstrip("/")
+
+    def _http_to_ws(url: str) -> str:
+        parsed = urlparse(url)
+        scheme = "wss" if parsed.scheme == "https" else "ws"
+        return urlunparse(parsed._replace(scheme=scheme))
+
+    ws_base = _http_to_ws(gateway_base)
+    ws_url = urljoin(ws_base + "/", f"ws/output/{session_id}")
+    stop_url = urljoin(gateway_base + "/", "control/stop")
+    mock_url = urljoin(dialog_base + "/", "tts/mock")
 
     last_msg_at: Optional[float] = None
     stop_sent_at: Optional[float] = None
     stop_ack_at: Optional[float] = None
     stop_ack_event = asyncio.Event()
+    connected_event = asyncio.Event()
 
     async def receiver():
         nonlocal last_msg_at, stop_ack_at
-        async with websockets.connect(ws_url) as ws:
-            async for msg in ws:
-                now = time.perf_counter()
-                # bytes => audio frame
-                if isinstance(msg, (bytes, bytearray)):
-                    last_msg_at = now
-                    continue
-                # text => parse json and inspect type
-                try:
-                    data = json.loads(msg)
-                except Exception:
-                    continue
-                mtype = str(data.get("type", "")).lower()
-                if mtype == "audio_chunk":
-                    last_msg_at = now
-                elif mtype == "control":
-                    action = str(data.get("action", "")).upper()
-                    if action == "STOP_ACK":
-                        stop_ack_at = now
-                        stop_ack_event.set()
+        try:
+            async with websockets.connect(ws_url) as ws:
+                connected_event.set()
+                async for msg in ws:
+                    now = time.perf_counter()
+                    # bytes => audio frame
+                    if isinstance(msg, (bytes, bytearray)):
+                        last_msg_at = now
+                        continue
+                    # text => parse json and inspect type
+                    try:
+                        data = json.loads(msg)
+                    except Exception:
+                        continue
+                    mtype = str(data.get("type", "")).lower()
+                    if mtype == "audio_chunk":
+                        last_msg_at = now
+                    elif mtype == "control":
+                        action = str(data.get("action", "")).upper()
+                        if action == "STOP_ACK":
+                            stop_ack_at = now
+                            stop_ack_event.set()
+        except asyncio.CancelledError:
+            # normal shutdown path
+            if not connected_event.is_set():
+                connected_event.set()
+            return
+        except Exception:
+            if not connected_event.is_set():
+                connected_event.set()
+            return
 
     async def trigger_and_stop():
         nonlocal stop_sent_at
-    # Use generous timeout; /tts/mock now returns immediately, but be safe
-    # Provide a default plus explicit connect override to satisfy httpx requirements
-    timeout = httpx.Timeout(30.0, connect=5.0, read=30.0, write=30.0)
-    async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
+        # Use generous timeout; /tts/mock now returns immediately, but be safe
+        # Provide a default plus explicit connect override to satisfy httpx requirements
+        timeout = httpx.Timeout(30.0, connect=5.0, read=30.0, write=30.0)
+        async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
             # trigger mock stream
             payload = {
                 "sessionId": session_id,
@@ -118,6 +139,16 @@ async def one_run(
     # run both tasks
     recv_task = asyncio.create_task(receiver())
     try:
+        try:
+            await asyncio.wait_for(connected_event.wait(), timeout=5.0)
+        except asyncio.TimeoutError as exc:
+            raise RuntimeError(
+                f"failed to connect to gateway output WS at {ws_url}"
+            ) from exc
+        if recv_task.done():
+            exc = recv_task.exception()
+            if exc:
+                raise RuntimeError(f"output websocket error: {exc}") from exc
         await trigger_and_stop()
         # wait for STOP_ACK or quiet period after stop
         waited = 0.0
@@ -134,8 +165,17 @@ async def one_run(
                 break
     finally:
         recv_task.cancel()
-        with contextlib.suppress(Exception):
+        try:
             await recv_task
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            pass
+
+    if last_msg_at is None:
+        raise RuntimeError(
+            f"session {session_id}: Mock TTS produced no audio chunks; ensure SYNC_TTS_STREAMING=true on dialog-engine/output-handler and that dialog-engine reaches OUTPUT_INGEST_WS_URL."
+        )
 
     # compute latencies
     ack_ms = None
@@ -160,18 +200,26 @@ async def main():
 
     results: List[RunResult] = []
     for i in range(args.runs):
-        res = await one_run(
-            gateway_base=args.gateway,
-            dialog_base=args.dialog,
-            start_delay_ms=args.start_delay_ms,
-            chunk_delay_ms=args.chunk_delay_ms,
-            chunk_count=args.chunk_count,
-            quiet_ms=args.quiet_ms,
-        )
+        try:
+            res = await one_run(
+                gateway_base=args.gateway,
+                dialog_base=args.dialog,
+                start_delay_ms=args.start_delay_ms,
+                chunk_delay_ms=args.chunk_delay_ms,
+                chunk_count=args.chunk_count,
+                quiet_ms=args.quiet_ms,
+            )
+        except RuntimeError as exc:
+            print(f"run {i+1}/{args.runs} failed: {exc}")
+            return
         results.append(res)
+
+        def _fmt(value: Optional[float]) -> str:
+            return f"{value:.1f}" if value is not None else "--"
+
         print(
-            f"run {i+1}/{args.runs} sid={res.session_id[:8]} stop_ack={res.stop_ack_latency_ms:.1f}ms "
-            f"last_chunk={res.last_chunk_latency_ms:.1f}ms"
+            f"run {i+1}/{args.runs} sid={res.session_id[:8]} stop_ack={_fmt(res.stop_ack_latency_ms)}ms "
+            f"last_chunk={_fmt(res.last_chunk_latency_ms)}ms"
         )
 
     acks = [r.stop_ack_latency_ms for r in results if r.stop_ack_latency_ms is not None]
