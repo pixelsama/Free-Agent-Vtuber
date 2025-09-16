@@ -98,7 +98,9 @@ async def one_run(
     async def trigger_and_stop():
         nonlocal stop_sent_at
     # Use generous timeout; /tts/mock now returns immediately, but be safe
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    # Provide a default plus explicit connect override to satisfy httpx requirements
+    timeout = httpx.Timeout(30.0, connect=5.0, read=30.0, write=30.0)
+    async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
             # trigger mock stream
             payload = {
                 "sessionId": session_id,
