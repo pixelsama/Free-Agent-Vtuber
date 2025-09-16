@@ -1,4 +1,5 @@
-import importlib
+import importlib.util
+from pathlib import Path
 
 import pytest
 
@@ -15,14 +16,21 @@ class DummyRedis:
         return "ok"
 
 
+def _load_outbox(module_name: str, module_path: Path):
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    spec.loader.exec_module(module)
+    return module
+
+
 @pytest.fixture()
 def outbox(monkeypatch, tmp_path):
     db_path = tmp_path / "outbox.sqlite"
     monkeypatch.setenv("DIALOG_ENGINE_DB", str(db_path))
-    from services.dialog-engine import ltm_outbox
-
-    importlib.reload(ltm_outbox)
-    yield ltm_outbox
+    module_path = Path(__file__).resolve().parents[2] / "ltm_outbox.py"
+    module = _load_outbox("ltm_outbox", module_path)
+    yield module
 
 
 @pytest.mark.asyncio
