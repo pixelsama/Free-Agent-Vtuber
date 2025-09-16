@@ -398,7 +398,8 @@ async def health_check():
         "redis": redis_status,
         "active_connections": len(active_connections),
         "streaming_enabled": STREAMING_ENABLED,
-        "barge_in_enabled": BARGE_IN_ENABLED
+        "barge_in_enabled": BARGE_IN_ENABLED,
+        "ingest_connected": ingest_ws is not None
     }
 
 if __name__ == "__main__":
