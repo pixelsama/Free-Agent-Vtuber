@@ -52,10 +52,15 @@ services:
       # Mock TTS defaults (can be overridden in .env for STOP testing)
       - MOCK_TTS_CHUNK_DELAY_MS=${MOCK_TTS_CHUNK_DELAY_MS:-200}
       - MOCK_TTS_CHUNK_COUNT=${MOCK_TTS_CHUNK_COUNT:-50}
+      # Async extensions (M3)
+      - ENABLE_ASYNC_EXT=${ENABLE_ASYNC_EXT:-false}
+      - OUTBOX_FLUSH_INTERVAL_MS=${OUTBOX_FLUSH_INTERVAL_MS:-500}
+      - EVENT_STREAM_MAXLEN=${EVENT_STREAM_MAXLEN:-100000}
     ports:
       - "8100:8100"
     volumes:
       - ./services/dialog-engine:/app/services/dialog-engine
+      - dialog_engine_data:/app/data
     restart: "no"
     depends_on:
       - redis
@@ -201,6 +206,43 @@ services:
     depends_on:
       - redis
 
+  # Async workers (M3)
+  async-workers-ltm:
+    build:
+      context: ./services/async-workers
+      dockerfile: Dockerfile
+    container_name: aivtuber-async-ltm-dev
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - PYTHONPATH=/app
+      - LTM_STREAM=events.ltm
+      - LTM_GROUP=ltm-workers
+    command: ["python", "ltm_worker.py"]
+    volumes:
+      - ./services/async-workers:/app/services/async-workers
+    restart: "no"
+    depends_on:
+      - redis
+
+  async-workers-analytics:
+    build:
+      context: ./services/async-workers
+      dockerfile: Dockerfile
+    container_name: aivtuber-async-analytics-dev
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - PYTHONPATH=/app
+      - ANALYTICS_STREAM=events.analytics
+      - ANALYTICS_GROUP=a11y-workers
+    command: ["python", "analytics_worker.py"]
+    volumes:
+      - ./services/async-workers:/app/services/async-workers
+    restart: "no"
+    depends_on:
+      - redis
+
   # TTS语音合成服务
   tts:
     build:
@@ -227,6 +269,7 @@ volumes:
   ltm_dev_data:
   ltm_dev_logs:
   temp_files:
+  dialog_engine_data:
 
 networks:
   default:
