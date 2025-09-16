@@ -27,6 +27,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from typing import List, Optional
+import contextlib
 
 import httpx
 import websockets
@@ -96,7 +97,8 @@ async def one_run(
 
     async def trigger_and_stop():
         nonlocal stop_sent_at
-        async with httpx.AsyncClient(timeout=10.0) as client:
+    # Use generous timeout; /tts/mock now returns immediately, but be safe
+    async with httpx.AsyncClient(timeout=30.0) as client:
             # trigger mock stream
             payload = {
                 "sessionId": session_id,
@@ -129,12 +131,9 @@ async def one_run(
             if waited > 10.0:  # safety timeout
                 break
     finally:
-        try:
-            recv_task.cancel()
-            with contextlib.suppress(Exception):
-                await recv_task
-        except Exception:
-            pass
+        recv_task.cancel()
+        with contextlib.suppress(Exception):
+            await recv_task
 
     # compute latencies
     ack_ms = None
@@ -191,10 +190,7 @@ async def main():
 
 
 if __name__ == "__main__":
-    import contextlib
-
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         pass
-

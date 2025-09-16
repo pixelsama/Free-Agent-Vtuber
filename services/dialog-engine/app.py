@@ -82,8 +82,9 @@ async def tts_mock(request: Request):
     delay_ms = body.get("chunkDelayMs")
     if not session_id or not isinstance(text, str):
         raise HTTPException(status_code=400, detail="sessionId and text required")
-    await tts_stream_text(session_id=session_id, text=text, chunk_count=chunk_count, delay_ms=delay_ms)
-    return {"ok": True}
+    # 启动后台任务，立即返回，避免阻塞调用方
+    asyncio.create_task(tts_stream_text(session_id=session_id, text=text, chunk_count=chunk_count, delay_ms=delay_ms))
+    return {"ok": True, "sessionId": session_id}
 
 
 if __name__ == "__main__":
