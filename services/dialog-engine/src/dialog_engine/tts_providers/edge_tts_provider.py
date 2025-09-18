@@ -40,7 +40,6 @@ class EdgeTtsProvider(TtsProvider):
             voice=self.voice,
             rate=self._rate,
             volume=self._volume,
-            output_format=self._output_format,
         )
         stream = communicate.stream()
         stop_waiter = asyncio.create_task(stop_event.wait())
