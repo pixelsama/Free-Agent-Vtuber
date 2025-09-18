@@ -48,10 +48,17 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - SYNC_TTS_STREAMING=${SYNC_TTS_STREAMING:-false}
+      - SYNC_TTS_BARGE_IN=${SYNC_TTS_BARGE_IN:-false}
+      - SYNC_TTS_PROVIDER=${SYNC_TTS_PROVIDER:-mock}
       - OUTPUT_INGEST_WS_URL=ws://output-handler:8002/ws/ingest/tts
       # Mock TTS defaults (can be overridden in .env for STOP testing)
       - MOCK_TTS_CHUNK_DELAY_MS=${MOCK_TTS_CHUNK_DELAY_MS:-200}
       - MOCK_TTS_CHUNK_COUNT=${MOCK_TTS_CHUNK_COUNT:-50}
+      # Edge TTS defaults (M4)
+      - EDGE_TTS_VOICE=${EDGE_TTS_VOICE:-zh-CN-XiaoxiaoNeural}
+      - EDGE_TTS_RATE=${EDGE_TTS_RATE:-0%}
+      - EDGE_TTS_VOLUME=${EDGE_TTS_VOLUME:-+0%}
+      - EDGE_TTS_OUTPUT_FORMAT=${EDGE_TTS_OUTPUT_FORMAT:-riff-24khz-16bit-mono-pcm}
       # Async extensions (M3)
       - ENABLE_ASYNC_EXT=${ENABLE_ASYNC_EXT:-false}
       - OUTBOX_FLUSH_INTERVAL_MS=${OUTBOX_FLUSH_INTERVAL_MS:-500}
