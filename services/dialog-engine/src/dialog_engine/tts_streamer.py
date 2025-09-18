@@ -25,7 +25,7 @@ PROVIDER_NAME = os.getenv("SYNC_TTS_PROVIDER", "mock").strip().lower()
 MOCK_CHUNK_DELAY_MS_DEFAULT = int(os.getenv("MOCK_TTS_CHUNK_DELAY_MS", "200"))
 MOCK_CHUNK_COUNT_DEFAULT = int(os.getenv("MOCK_TTS_CHUNK_COUNT", "50"))
 EDGE_TTS_VOICE = os.getenv("EDGE_TTS_VOICE", "zh-CN-XiaoxiaoNeural")
-EDGE_TTS_RATE = os.getenv("EDGE_TTS_RATE", "0%")
+EDGE_TTS_RATE = os.getenv("EDGE_TTS_RATE", "+0%")
 EDGE_TTS_VOLUME = os.getenv("EDGE_TTS_VOLUME", "+0%")
 EDGE_TTS_OUTPUT_FORMAT = os.getenv("EDGE_TTS_OUTPUT_FORMAT", "riff-24khz-16bit-mono-pcm")
 

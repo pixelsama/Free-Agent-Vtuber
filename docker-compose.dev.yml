@@ -56,7 +56,7 @@ services:
       - MOCK_TTS_CHUNK_COUNT=${MOCK_TTS_CHUNK_COUNT:-50}
       # Edge TTS defaults (M4)
       - EDGE_TTS_VOICE=${EDGE_TTS_VOICE:-zh-CN-XiaoxiaoNeural}
-      - EDGE_TTS_RATE=${EDGE_TTS_RATE:-0%}
+      - EDGE_TTS_RATE=${EDGE_TTS_RATE:-+0%}
       - EDGE_TTS_VOLUME=${EDGE_TTS_VOLUME:-+0%}
       - EDGE_TTS_OUTPUT_FORMAT=${EDGE_TTS_OUTPUT_FORMAT:-riff-24khz-16bit-mono-pcm}
       # Async extensions (M3)
