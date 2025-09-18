@@ -5,11 +5,11 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . /app/services/dialog-engine
+COPY src /app/src
+COPY tests /app/tests
 
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app/src
 
 EXPOSE 8100
 
-CMD ["python", "-m", "services.dialog-engine.app"]
-
+CMD ["python", "-m", "dialog_engine.app"]

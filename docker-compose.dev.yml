@@ -44,7 +44,7 @@ services:
     container_name: aivtuber-dialog-engine-dev
     environment:
       - PORT=8100
-      - PYTHONPATH=/app
+      - PYTHONPATH=/app/src
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - SYNC_TTS_STREAMING=${SYNC_TTS_STREAMING:-false}
@@ -59,7 +59,8 @@ services:
     ports:
       - "8100:8100"
     volumes:
-      - ./services/dialog-engine:/app/services/dialog-engine
+      - ./services/dialog-engine/src:/app/src
+      - ./services/dialog-engine/tests:/app/tests
       - dialog_engine_data:/app/data
     restart: "no"
     depends_on:

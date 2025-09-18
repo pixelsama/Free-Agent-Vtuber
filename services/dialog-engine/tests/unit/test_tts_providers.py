@@ -1,46 +1,17 @@
 import asyncio
-import importlib.util
-import sys
-import types
-from pathlib import Path
 
 import pytest
 
-
-_BASE_DIR = Path(__file__).resolve().parents[2] / "tts_providers"
-_PACKAGE_NAME = "dialog_engine_tts_testpkg"
-
-pkg = sys.modules.setdefault(_PACKAGE_NAME, types.ModuleType(_PACKAGE_NAME))
-pkg.__path__ = [str(_BASE_DIR)]  # type: ignore[attr-defined]
-
-
-def _load_module(module_name: str):
-    full_name = f"{_PACKAGE_NAME}.{module_name}"
-    existing = sys.modules.get(full_name)
-    if existing:
-        return existing
-
-    module_path = _BASE_DIR / f"{module_name}.py"
-    spec = importlib.util.spec_from_file_location(full_name, module_path)
-    module = importlib.util.module_from_spec(spec)
-    assert spec and spec.loader
-    module.__package__ = _PACKAGE_NAME
-    sys.modules[full_name] = module
-    setattr(pkg, module_name, module)
-    spec.loader.exec_module(module)
-    return module
-
-
-_base_module = _load_module("base")
-_mock_module = _load_module("mock")
-MockTtsProvider = _mock_module.MockTtsProvider
+from dialog_engine.tts_providers.mock import MockTtsProvider
 
 try:
-    _edge_module = _load_module("edge_tts_provider")
-    EdgeTtsProvider = _edge_module.EdgeTtsProvider
+    from dialog_engine.tts_providers.edge_tts_provider import EdgeTtsProvider
 except RuntimeError:
-    _edge_module = None
     EdgeTtsProvider = None
+
+
+def _skip_edge():
+    return pytest.mark.skipif(EdgeTtsProvider is None, reason="edge-tts dependency unavailable")
 
 
 @pytest.mark.asyncio
@@ -54,8 +25,8 @@ async def test_mock_provider_respects_stop_event():
     assert len(chunks) == 1
 
 
+@_skip_edge()
 @pytest.mark.asyncio
-@pytest.mark.skipif(EdgeTtsProvider is None, reason="edge-tts dependency unavailable")
 async def test_edge_provider_stream(monkeypatch):
     emitted = [b"chunk1", b"chunk2"]
 
@@ -73,8 +44,8 @@ async def test_edge_provider_stream(monkeypatch):
         async def __anext__(self):
             try:
                 return next(self._iter)
-            except StopIteration:
-                raise StopAsyncIteration
+            except StopIteration as exc:
+                raise StopAsyncIteration from exc
 
         async def aclose(self):
             return None
@@ -89,7 +60,10 @@ async def test_edge_provider_stream(monkeypatch):
         async def stop(self):
             self.stopped = True
 
-    monkeypatch.setattr(_edge_module.edge_tts, "Communicate", DummyCommunicate)
+    monkeypatch.setattr(
+        "dialog_engine.tts_providers.edge_tts_provider.edge_tts.Communicate",
+        DummyCommunicate,
+    )
 
     provider = EdgeTtsProvider(voice="zh-CN-XiaoxiaoNeural")
     stop_event = asyncio.Event()
