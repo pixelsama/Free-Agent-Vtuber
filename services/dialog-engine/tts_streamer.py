@@ -1,63 +1,114 @@
+from __future__ import annotations
+
 import asyncio
 import base64
-import os
-import websockets
 import json
-from typing import AsyncGenerator, Optional
+import logging
+import os
+import time
+from typing import Optional
 
+import websockets
+
+from .tts_providers import MockTtsProvider, TtsProvider
+
+try:
+    from .tts_providers.edge_tts_provider import EdgeTtsProvider
+except (RuntimeError, ModuleNotFoundError):
+    EdgeTtsProvider = None  # type: ignore[assignment]
+
+
+logger = logging.getLogger(__name__)
 
 OUTPUT_INGEST_WS_URL = os.getenv("OUTPUT_INGEST_WS_URL", "ws://localhost:8002/ws/ingest/tts")
-CHUNK_DELAY_MS_DEFAULT = int(os.getenv("MOCK_TTS_CHUNK_DELAY_MS", "200"))  # 每片默认 200ms
-CHUNK_COUNT_DEFAULT = int(os.getenv("MOCK_TTS_CHUNK_COUNT", "50"))        # 默认 50 片
+PROVIDER_NAME = os.getenv("SYNC_TTS_PROVIDER", "mock").strip().lower()
+MOCK_CHUNK_DELAY_MS_DEFAULT = int(os.getenv("MOCK_TTS_CHUNK_DELAY_MS", "200"))
+MOCK_CHUNK_COUNT_DEFAULT = int(os.getenv("MOCK_TTS_CHUNK_COUNT", "50"))
+EDGE_TTS_VOICE = os.getenv("EDGE_TTS_VOICE", "zh-CN-XiaoxiaoNeural")
+EDGE_TTS_RATE = os.getenv("EDGE_TTS_RATE", "0%")
+EDGE_TTS_VOLUME = os.getenv("EDGE_TTS_VOLUME", "+0%")
+EDGE_TTS_OUTPUT_FORMAT = os.getenv("EDGE_TTS_OUTPUT_FORMAT", "riff-24khz-16bit-mono-pcm")
 
 
-async def _mock_audio_chunks(text: str, *, chunk_count: int, delay_ms: int, stop_event: asyncio.Event) -> AsyncGenerator[bytes, None]:
-    """Yield many small fake PCM chunks with delay; stop promptly on stop_event.
+def _build_provider(
+    *,
+    provider_name: str,
+    chunk_count: Optional[int],
+    delay_ms: Optional[int],
+) -> TtsProvider:
+    if provider_name == "edge-tts":
+        if EdgeTtsProvider is None:
+            raise RuntimeError("EdgeTTS provider requested but edge-tts dependency unavailable")
+        return EdgeTtsProvider(
+            voice=EDGE_TTS_VOICE,
+            rate=EDGE_TTS_RATE,
+            volume=EDGE_TTS_VOLUME,
+            output_format=EDGE_TTS_OUTPUT_FORMAT,
+        )
+    # Default mock provider used for local testing and e2e scripts.
+    effective_delay = int(delay_ms or MOCK_CHUNK_DELAY_MS_DEFAULT)
+    effective_count = int(chunk_count or MOCK_CHUNK_COUNT_DEFAULT)
+    return MockTtsProvider(chunk_delay_ms=effective_delay, chunk_count=effective_count)
 
-    For M2 scaffolding only. Replace with real provider in M4.
+
+async def stream_text(
+    session_id: str,
+    text: str,
+    *,
+    chunk_count: Optional[int] = None,
+    delay_ms: Optional[int] = None,
+) -> None:
+    """Push audio chunks for the given text via the ingest websocket.
+
+    Uses provider indicated by SYNC_TTS_PROVIDER flag (mock fallback).
+    Responds to STOP control messages by cancelling provider streaming promptly.
     """
-    # Build a small deterministic payload per chunk (content not important for transport layer test)
-    base = text.encode("utf-8")[:8] or b"FAKE"
-    for i in range(chunk_count):
-        if stop_event.is_set():
-            return
-        await asyncio.sleep(max(0.0, delay_ms / 1000.0))
-        yield base + b"-" + str(i).encode("ascii")
 
-
-async def stream_text(session_id: str, text: str, *, chunk_count: Optional[int] = None, delay_ms: Optional[int] = None) -> None:
-    """Connect to Output Handler ingest WS and push mock speech chunks; handle STOP.
-
-    - Produces many chunks with configurable delay (env or params) to facilitate STOP testing.
-    - Listens for CONTROL {action: STOP} from Output and stops promptly.
-    """
     url = os.getenv("OUTPUT_INGEST_WS_URL", OUTPUT_INGEST_WS_URL)
-    chunk_count = int(chunk_count or CHUNK_COUNT_DEFAULT)
-    delay_ms = int(delay_ms or CHUNK_DELAY_MS_DEFAULT)
+    provider = _build_provider(
+        provider_name=PROVIDER_NAME,
+        chunk_count=chunk_count,
+        delay_ms=delay_ms,
+    )
 
     stop_event = asyncio.Event()
+    first_chunk_ms: Optional[float] = None
 
     async with websockets.connect(url) as ws:
         async def sender() -> None:
+            nonlocal first_chunk_ms
             seq = 0
-            async for chunk in _mock_audio_chunks(text, chunk_count=chunk_count, delay_ms=delay_ms, stop_event=stop_event):
-                if stop_event.is_set():
-                    break
-                msg = {
-                    "type": "SPEECH_CHUNK",
-                    "sessionId": session_id,
-                    "seq": seq,
-                    "pcm": base64.b64encode(chunk).decode("ascii"),
-                    "viseme": {},
-                }
-                await ws.send(json.dumps(msg))
-                seq += 1
-            # signal end (only if not stopped)
-            if not stop_event.is_set():
-                await ws.send(json.dumps({"type": "CONTROL", "action": "END", "sessionId": session_id}))
+            start = time.perf_counter()
+            try:
+                async for chunk in provider.stream(
+                    session_id=session_id,
+                    text=text,
+                    stop_event=stop_event,
+                ):
+                    if stop_event.is_set():
+                        break
+                    if first_chunk_ms is None:
+                        first_chunk_ms = (time.perf_counter() - start) * 1000.0
+                    payload = {
+                        "type": "SPEECH_CHUNK",
+                        "sessionId": session_id,
+                        "seq": seq,
+                        "pcm": base64.b64encode(chunk).decode("ascii"),
+                        "viseme": {},
+                    }
+                    await ws.send(json.dumps(payload))
+                    seq += 1
+            finally:
+                if not stop_event.is_set():
+                    try:
+                        await ws.send(
+                            json.dumps({"type": "CONTROL", "action": "END", "sessionId": session_id})
+                        )
+                    except Exception:
+                        pass
+                await provider.shutdown()
 
         async def receiver() -> None:
-            # listen for STOP from Output and set stop_event
             try:
                 async for raw in ws:
                     try:
@@ -66,12 +117,12 @@ async def stream_text(session_id: str, text: str, *, chunk_count: Optional[int] 
                         continue
                     if data.get("type") == "CONTROL" and str(data.get("action")).upper() == "STOP":
                         stop_event.set()
-                        # Acknowledge STOP
-                        await ws.send(json.dumps({"type": "CONTROL", "action": "STOP_ACK", "sessionId": session_id}))
+                        await ws.send(
+                            json.dumps({"type": "CONTROL", "action": "STOP_ACK", "sessionId": session_id})
+                        )
                         break
             except Exception:
-                # Connection closed or other error: stop sending
                 stop_event.set()
 
-        # Run sender/receiver concurrently
         await asyncio.gather(sender(), receiver())
+    _ = first_chunk_ms  # reserved for future metrics wiring

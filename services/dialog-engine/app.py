@@ -23,7 +23,13 @@ _flush_task = None
 
 @app.get("/health")
 async def health() -> Dict[str, Any]:
-    return {"status": "ok", "service": "dialog-engine", "version": "m3-pre", "async_ext": ENABLE_ASYNC_EXT}
+    return {
+        "status": "ok",
+        "service": "dialog-engine",
+        "version": "m3-pre",
+        "async_ext": ENABLE_ASYNC_EXT,
+        "tts_provider": os.getenv("SYNC_TTS_PROVIDER", "mock"),
+    }
 
 
 def _sse_format(event: str, data: Dict[str, Any]) -> bytes:
