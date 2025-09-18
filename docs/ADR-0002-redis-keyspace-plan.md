@@ -63,6 +63,8 @@ XREADGROUP GROUP ltm-workers worker-1 COUNT 16 BLOCK 2000 STREAMS events.ltm >
 
 ### 3.2 Outbox 映射（在 dialog-engine 内）
 
+> 实现位置：`services/dialog-engine/src/dialog_engine/ltm_outbox.py`
+
 - SQLite 表 `outbox_events(id, type, payload, created_at, delivered)`
 - 后台投递：扫描 `delivered=0` → `XADD events.<topic> * type=<type> payload=<json>` → 成功后 `delivered=1`
 - 失败重试：指数退避 + 死信日志；不丢失（以 SQLite 为准）。
@@ -82,7 +84,7 @@ XREADGROUP GROUP ltm-workers worker-1 COUNT 16 BLOCK 2000 STREAMS events.ltm >
 ### 3.3 兼容与桥接（迁移策略）
 
 - `memory_updates` → `events.ltm`：
-  - M3 起 dialog-engine 直接写 `events.ltm`（Outbox）；
+- M3 起 dialog-engine 直接写 `events.ltm`（Outbox，参见 `dialog_engine.ltm_outbox`）；
   - 过渡期可提供桥接 worker：监听 `events.ltm`，生成兼容的 `memory_updates`（Pub/Sub）以不影响旧消费者；反向桥接按需。
 - `ltm_requests`/`ltm_responses`（列表+Pub/Sub）→ Streams：
   - 维持现状作为“类 RPC”；后续可迁为 `rpc.ltm.requests`（Stream）+ 响应走 Pub/Sub 指定 `response_channel` 或基于请求 ID 的临时 Stream（复杂度较高，后续评估）。
@@ -171,4 +173,3 @@ TTL 与刷新策略应按使用场景最小化“脏数据停留时间”。
   - 协调键：`rate_limit:*`、`lock:*`、`idempotency:*`、`presence:*`、`metrics:*`、`cache:*`、`cfg:*`
 
 本方案与 ADR-0001 同步实施，先引入 Outbox+Streams 与内部 WS，逐步迁移旧键，确保每一步都可回退且可观测。
-

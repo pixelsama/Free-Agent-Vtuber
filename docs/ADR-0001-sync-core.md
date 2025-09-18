@@ -23,7 +23,7 @@ Author: Core Team
 ## 2. 分阶段实施与里程碑
 
 - M1（2–3 天）：
-  - 新增 `services/dialog-engine`，提供 `POST /chat/stream`（SSE）文本流；短期记忆可先用 SQLite WAL 或临时复用 Redis。
+- 新增 `services/dialog-engine`（源码位于 `services/dialog-engine/src/dialog_engine/`），提供 `POST /chat/stream`（SSE）文本流；短期记忆可先用 SQLite WAL 或临时复用 Redis。
   - `input-handler` 在 Flag 开启时改为直调 `/chat/stream`（SSE），旧队列保留回退。
   - 输出侧暂维持现状：文本通过 SSE 提示渲染，音频仍走现有 TTS → 文件 → `output-handler` 分块回推。
   - 验收：SSE 首包文本 TTFT P95 < 300ms（以 mock LLM/降采样实现）。
@@ -58,12 +58,19 @@ Author: Core Team
 建议目录：
 ```
 services/dialog-engine/
-  app.py              # FastAPI，POST /chat/stream（SSE），健康检查
-  chat_service.py     # 上下文组装，调用 LLM（先 mock 或简化）
-  memory_shortterm.py # SQLite WAL，回合表 turns（仅上下文窗口）
-  tts_streamer.py     # 半流式/流式合成与打断（M2 先实现句边界）
-  ltm_outbox.py       # outbox_events 表 + 批量 XADD
-  config.py           # Flag/参数加载
+  Dockerfile
+  requirements.txt
+  src/
+    dialog_engine/
+      app.py              # FastAPI，POST /chat/stream（SSE），健康检查
+      chat_service.py     # 上下文组装，调用 LLM（先 mock 或简化）
+      ltm_outbox.py       # Outbox(SQLite) → Redis Streams
+      tts_streamer.py     # 半流式/流式合成与打断（M2 先实现句边界）
+      tts_providers/
+        base.py
+        mock.py
+        edge_tts_provider.py
+      __init__.py
   tests/
 ```
 
@@ -202,4 +209,3 @@ CREATE TABLE IF NOT EXISTS outbox_events(
 9) SVC-009 e2e：首包、打断、背压脚本
 
 备注：以上按 M1→M4 分批合入，保持旧路径可用与可回退。
-
