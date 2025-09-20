@@ -60,6 +60,19 @@
 - Gradually enable in production sessions while monitoring error rates.
 - Keep mock fallback accessible for low-bandwidth/offline demos.
 
+#### Rollout Checklist (Updated)
+- [ ] Confirm `ENABLE_REAL_LLM`, `ENABLE_SHORT_TERM_MEMORY`, and `ENABLE_LTM_INLINE` defaults in staging `.env` and docker-compose overrides.
+- [ ] Build and push updated `dialog-engine` image; redeploy stack with feature flag disabled (smoke test fallback path).
+- [ ] Enable `ENABLE_REAL_LLM=true` for a staging canary session; capture metrics:
+  - TTFT < 1.5 s (95th percentile) from `/chat/stream` logs.
+  - Token counts in `AnalyticsChatStats` match provider usage.
+  - `chat.context.loaded` log entries report STM/LTM counts; investigate anomalies.
+- [ ] Exercise stop/cancellation flow (Gateway STOP command) to ensure streaming aborts promptly.
+- [ ] Trigger LTM retrieval path; verify memory service latency < 150 ms and snippets render in prompt payload.
+- [ ] Run `pytest -q` in `services/dialog-engine` inside staging container to confirm packaging.
+- [ ] Update runbook with any staging findings and set alert thresholds for `llm.stream.error` and `chat.llm.fallback` rates.
+- [ ] Plan production rollout: start with <10% sessions, monitor for 24h, then ramp.
+
 ## 6. Dependencies & Coordination
 - Align with `chat-ai-python` maintainers if extracting shared clients.
 - Ensure `memory-python` exposes retrieval endpoint with latency < 150 ms.
