@@ -5,12 +5,14 @@ from contextlib import asynccontextmanager
 from typing import Dict
 
 import websockets
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import httpx
+from urllib.parse import urlparse, urlunparse
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from src.services.asr_routes import bp_asr as _flask_bp  # type: ignore
 from fastapi.middleware.wsgi import WSGIMiddleware
 from flask import Flask as _Flask  # shim for mounting Flask blueprint
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 import uvicorn
 
 # 配置日志
@@ -159,6 +161,68 @@ async def proxy_output(websocket: WebSocket, task_id: str):
     """代理输出WebSocket连接到output-handler服务"""
     backend_url = f"{BACKEND_SERVICES['output']}/ws/output/{task_id}"
     await proxy.proxy_websocket(websocket, backend_url, "output")
+
+
+def _output_http_base() -> str:
+    """Derive HTTP base URL for output-handler from WS URL env.
+
+    Converts ws://host:port -> http://host:port, wss:// -> https://
+    """
+    ws_url = BACKEND_SERVICES.get("output", "ws://localhost:8002")
+    parsed = urlparse(ws_url)
+    scheme = "https" if parsed.scheme == "wss" else "http"
+    http_parsed = parsed._replace(scheme=scheme, path="", params="", query="", fragment="")
+    return urlunparse(http_parsed).rstrip("/")
+
+
+@app.post("/control/stop")
+async def control_stop_proxy(payload: Dict[str, str]):
+    """Proxy STOP control to output-handler's /control/stop.
+
+    Body: {"sessionId": "<uuid>"}
+    """
+    session_id = payload.get("sessionId") if isinstance(payload, dict) else None
+    if not session_id:
+        raise HTTPException(status_code=400, detail="sessionId required")
+
+    target = f"{_output_http_base()}/control/stop"
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        try:
+            resp = await client.post(target, json={"sessionId": session_id})
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            try:
+                detail = exc.response.json()
+            except ValueError:
+                detail = exc.response.text or "output handler error"
+            raise HTTPException(status_code=exc.response.status_code, detail=detail)
+        except httpx.RequestError as exc:
+            raise HTTPException(status_code=502, detail=f"proxy error: {exc}")
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"proxy error: {exc}")
+
+    try:
+        return resp.json()
+    except ValueError:
+        return JSONResponse(status_code=resp.status_code, content={"status_code": resp.status_code, "body": resp.text})
+
+
+@app.get("/internal/output/health")
+async def output_health_proxy():
+    """Proxy Output Handler's /health for diagnostics via the gateway."""
+    target = f"{_output_http_base()}/health"
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        try:
+            resp = await client.get(target)
+            # Try parse JSON; fallback to text
+            try:
+                data = resp.json()
+            except ValueError:
+                data = {"status_code": resp.status_code, "body": resp.text}
+            return JSONResponse(status_code=resp.status_code, content=data)
+        except Exception as e:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=502, detail=f"proxy error: {e}")
 
 @app.get("/")
 async def get():

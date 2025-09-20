@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import uuid
+import httpx
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Dict, Optional
@@ -22,6 +23,10 @@ logger = logging.getLogger(__name__)
 # 全局变量
 redis_client: Optional[redis.Redis] = None
 active_connections: Dict[str, WebSocket] = {}
+
+# 同步主链路开关与目标地址（M1：仅文本流式）
+ENABLE_SYNC_CORE = os.getenv("ENABLE_SYNC_CORE", "false").lower() in {"1", "true", "yes", "on"}
+DIALOG_ENGINE_URL = os.getenv("DIALOG_ENGINE_URL", "http://localhost:8100")
 
 # 临时文件存储目录
 TEMP_DIR = Path("/tmp/aivtuber_tasks")
@@ -175,8 +180,11 @@ class InputHandler:
                 "task_id": task_id
             }))
             
-            # 通过Redis发送任务到处理队列
-            await self._send_to_redis_queue(task_id, data_type, input_file, content)
+            # 根据 Flag 选择同步链路（SSE）或旧链路（Redis 队列）
+            if data_type == "text" and ENABLE_SYNC_CORE:
+                asyncio.create_task(self._send_to_dialog_engine(task_id, content or ""))
+            else:
+                await self._send_to_redis_queue(task_id, data_type, input_file, content)
                 
         except Exception as e:
             logger.error(f"Error processing upload for task {task_id}: {e}")
@@ -254,6 +262,45 @@ class InputHandler:
                 
             except Exception as e:
                 logger.error(f"Failed to send task to Redis: {e}")
+
+    async def _send_to_dialog_engine(self, task_id: str, content: str):
+        """调用 dialog-engine 的 /chat/stream（SSE）。失败则回退旧链路。
+
+        说明（M1）：当前仅触发 SSE 流用于验证同步链路；流事件仅记录日志，不转发到前端。
+        """
+        url = f"{DIALOG_ENGINE_URL.rstrip('/')}/chat/stream"
+        payload = {
+            "sessionId": task_id,
+            "turn": 0,
+            "type": "TEXT",
+            "content": content,
+            "meta": {"lang": "zh"}
+        }
+        try:
+            timeout = httpx.Timeout(connect=2.0, read=30.0, write=10.0)
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                async with client.stream("POST", url, json=payload, headers={"Accept": "text/event-stream"}) as resp:
+                    resp.raise_for_status()
+                    async for line in resp.aiter_lines():
+                        if not line:
+                            continue
+                        if line.startswith("event:"):
+                            logger.info(f"[SSE] event: {line}")
+                        elif line.startswith("data:"):
+                            logger.info(f"[SSE] data : {line[:200]}")
+            logger.info(f"Dialog-engine SSE completed for task {task_id}")
+        except Exception as e:
+            logger.warning(f"SSE path failed, fallback to Redis queue. Reason: {e}")
+            # 回退：将文本按旧链路入队
+            task_dir = TEMP_DIR / task_id
+            input_file = task_dir / "input.txt"
+            try:
+                input_file.parent.mkdir(parents=True, exist_ok=True)
+                with open(input_file, "w", encoding="utf-8") as f:
+                    f.write(content)
+            except Exception:
+                pass
+            await self._send_to_redis_queue(task_id, "text", input_file, content)
     
     def _cleanup_task_data(self, task_id: str):
         """清理任务相关的临时数据"""

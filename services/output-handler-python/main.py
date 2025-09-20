@@ -8,9 +8,10 @@ from pathlib import Path
 from typing import Dict, Optional
 
 import redis.asyncio as redis
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import HTMLResponse
 import uvicorn
+import base64
 
 # 配置日志
 logging.basicConfig(
@@ -23,6 +24,8 @@ logger = logging.getLogger(__name__)
 redis_client: Optional[redis.Redis] = None
 active_connections: Dict[str, WebSocket] = {}
 task_status: Dict[str, str] = {}
+ingest_ws: Optional[WebSocket] = None  # dialog-engine upstream connection
+_chunk_seq: Dict[str, int] = {}  # per-session chunk counters
 
 async def init_redis():
     global redis_client
@@ -239,12 +242,120 @@ class OutputHandler:
                 "message": f"Audio transmission failed: {str(e)}"
             }))
 
+    async def relay_speech_chunk(self, session_id: str, pcm_b64: str, seq: Optional[int] = None):
+        """Relay one speech chunk from dialog-engine to the frontend client.
+
+        - Decodes base64 payload to bytes
+        - Sends a metadata JSON (type=audio_chunk) then bytes, matching existing pattern
+        """
+        ws = active_connections.get(session_id)
+        if not ws:
+            logger.debug(f"No frontend WS for session_id={session_id}; dropping chunk")
+            return
+        try:
+            chunk_bytes = base64.b64decode(pcm_b64)
+            seq_val = seq if isinstance(seq, int) else _chunk_seq.get(session_id, 0)
+            _chunk_seq[session_id] = seq_val + 1
+            meta = {
+                "type": "audio_chunk",
+                "task_id": session_id,
+                "chunk_id": seq_val,
+                "total_chunks": None
+            }
+            await ws.send_text(json.dumps(meta))
+            await ws.send_bytes(chunk_bytes)
+        except Exception as e:
+            logger.error(f"Failed to relay chunk to client {session_id}: {e}")
+
+    async def relay_control(self, session_id: str, action: str):
+        ws = active_connections.get(session_id)
+        if not ws:
+            return
+        try:
+            await ws.send_text(json.dumps({"type": "control", "action": action, "task_id": session_id}))
+        except Exception:
+            pass
+
 # 初始化处理器
 output_handler = OutputHandler()
 
 @app.websocket("/ws/output/{task_id}")
 async def websocket_output_endpoint(websocket: WebSocket, task_id: str):
     await output_handler.handle_connection(websocket, task_id)
+
+def _bool_env(name: str, default: str = "false") -> bool:
+    val = os.getenv(name, default).strip().lower()
+    return val in {"1", "true", "yes", "on"}
+
+STREAMING_ENABLED = _bool_env("SYNC_TTS_STREAMING", "false")
+BARGE_IN_ENABLED = _bool_env("SYNC_TTS_BARGE_IN", "false")
+
+
+@app.websocket("/ws/ingest/tts")
+async def websocket_ingest_tts(websocket: WebSocket):
+    """Internal WS for dialog-engine to push TTS chunks and receive control.
+
+    Expected messages (JSON text):
+    - {"type":"SPEECH_CHUNK","sessionId":"...","seq":n,"pcm":"<base64>","viseme":{...}}
+    - {"type":"CONTROL","action":"END"|"STOP_ACK","sessionId":"..."}
+    """
+    if not STREAMING_ENABLED:
+        # 拒绝建立推流通道（M1 保持禁用；M2 起可启用）
+        await websocket.accept()
+        await websocket.close(code=4403, reason="SYNC_TTS_STREAMING disabled")
+        return
+    global ingest_ws
+    await websocket.accept()
+    ingest_ws = websocket
+    logger.info("Ingest WS connected (dialog-engine)")
+    try:
+        while True:
+            msg = await websocket.receive_text()
+            try:
+                data = json.loads(msg)
+            except Exception:
+                logger.warning("Ingest WS received non-JSON; ignoring")
+                continue
+            mtype = data.get("type")
+            if mtype == "SPEECH_CHUNK":
+                await output_handler.relay_speech_chunk(
+                    session_id=str(data.get("sessionId") or ""),
+                    pcm_b64=str(data.get("pcm") or ""),
+                    seq=data.get("seq"),
+                )
+            elif mtype == "CONTROL":
+                action = str(data.get("action") or "").upper()
+                session_id = str(data.get("sessionId") or "")
+                await output_handler.relay_control(session_id, action)
+            else:
+                logger.debug(f"Ingest WS unknown type: {mtype}")
+    except WebSocketDisconnect:
+        logger.info("Ingest WS disconnected")
+    except Exception as e:
+        logger.error(f"Ingest WS error: {e}")
+    finally:
+        if ingest_ws is websocket:
+            ingest_ws = None
+
+@app.post("/control/stop")
+async def control_stop(payload: Dict[str, str]):
+    """Send STOP control upstream to dialog-engine (temporary control API).
+
+    Body: {"sessionId": "..."}
+    """
+    session_id = payload.get("sessionId") if isinstance(payload, dict) else None
+    if not session_id:
+        raise HTTPException(status_code=400, detail="sessionId required")
+    if not BARGE_IN_ENABLED:
+        raise HTTPException(status_code=409, detail="SYNC_TTS_BARGE_IN disabled")
+    if not ingest_ws:
+        raise HTTPException(status_code=503, detail="ingest websocket not connected")
+    try:
+        await ingest_ws.send_text(json.dumps({"type": "CONTROL", "action": "STOP", "sessionId": session_id}))
+        return {"ok": True}
+    except Exception as e:
+        logger.error(f"Failed to send STOP upstream: {e}")
+        raise HTTPException(status_code=500, detail="failed to send stop")
 
 @app.get("/")
 async def get():
@@ -285,7 +396,10 @@ async def health_check():
     return {
         "status": "ok",
         "redis": redis_status,
-        "active_connections": len(active_connections)
+        "active_connections": len(active_connections),
+        "streaming_enabled": STREAMING_ENABLED,
+        "barge_in_enabled": BARGE_IN_ENABLED,
+        "ingest_connected": ingest_ws is not None
     }
 
 if __name__ == "__main__":
