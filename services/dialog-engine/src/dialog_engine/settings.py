@@ -57,9 +57,27 @@ class LLMSettings:
 
 
 @dataclass(frozen=True)
+class ShortTermMemorySettings:
+    enabled: bool
+    db_path: str
+    context_turns: int
+
+
+@dataclass(frozen=True)
+class LTMInlineSettings:
+    enabled: bool
+    base_url: str | None
+    retrieve_path: str
+    timeout: float
+    max_snippets: int
+
+
+@dataclass(frozen=True)
 class Settings:
     openai: OpenAISettings
     llm: LLMSettings
+    short_term: ShortTermMemorySettings
+    ltm_inline: LTMInlineSettings
 
 
 def load_settings() -> Settings:
@@ -84,9 +102,36 @@ def load_settings() -> Settings:
         base_url=os.getenv("OPENAI_BASE_URL"),
     )
 
-    return Settings(openai=openai_settings, llm=llm_settings)
+    short_term_settings = ShortTermMemorySettings(
+        enabled=_env_bool("ENABLE_SHORT_TERM_MEMORY", True),
+        db_path=os.getenv("STM_DB_PATH", "/app/data/dialog_memory.sqlite"),
+        context_turns=_env_int("STM_CONTEXT_TURNS", 20),
+    )
+
+    ltm_inline_settings = LTMInlineSettings(
+        enabled=_env_bool("ENABLE_LTM_INLINE", False),
+        base_url=os.getenv("LTM_BASE_URL"),
+        retrieve_path=os.getenv("LTM_RETRIEVE_PATH", "/v1/memory/retrieve"),
+        timeout=_env_float("LTM_RETRIEVE_TIMEOUT", 3.0),
+        max_snippets=_env_int("LTM_MAX_SNIPPETS", 5),
+    )
+
+    return Settings(
+        openai=openai_settings,
+        llm=llm_settings,
+        short_term=short_term_settings,
+        ltm_inline=ltm_inline_settings,
+    )
 
 
 settings = load_settings()
 
-__all__ = ["Settings", "LLMSettings", "OpenAISettings", "settings", "load_settings"]
+__all__ = [
+    "Settings",
+    "LLMSettings",
+    "OpenAISettings",
+    "ShortTermMemorySettings",
+    "LTMInlineSettings",
+    "settings",
+    "load_settings",
+]
