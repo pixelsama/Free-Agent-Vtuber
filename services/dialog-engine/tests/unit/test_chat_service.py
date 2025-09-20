@@ -185,3 +185,26 @@ async def test_stream_reply_llm_includes_ltm_snippets():
     sent_messages = stub_llm.calls[0]
     system_blocks = [m for m in sent_messages if m["role"] == "system"]
     assert any("Relevant memories" in m["content"] for m in system_blocks)
+
+
+@pytest.mark.asyncio
+async def test_stream_reply_llm_logs_context_counts(caplog):
+    stub_llm = _StubLLMClient(["Done"])
+    memory_turns = [MemoryTurn(role="user", content="Q1"), MemoryTurn(role="assistant", content="A1")]
+    memory_store = _StubMemoryStore(memory_turns)
+    ltm_client = _StubLTMClient(["记忆片段"])
+    service = ChatService(
+        settings=_make_settings(enabled=True, stm_enabled=True, ltm_enabled=True, base_url="http://ltm"),
+        llm_client_factory=lambda: stub_llm,
+        memory_store=memory_store,
+        ltm_client=ltm_client,
+    )
+
+    with caplog.at_level("INFO"):
+        async for _ in service.stream_reply("sess-log", "新的问题", meta={}):
+            pass
+
+    records = [record for record in caplog.records if record.msg == "chat.context.loaded"]
+    assert records
+    assert records[0].stm_turns == 2
+    assert records[0].ltm_snippets == 1

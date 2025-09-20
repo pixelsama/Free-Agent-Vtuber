@@ -55,6 +55,7 @@ class ChatService:
                 user_text=user_text,
                 meta=meta,
             )
+            self._log_context_info(len(context_turns), len(ltm_snippets))
             try:
                 async for delta in self._emit_with_metrics(
                     self._stream_llm(
@@ -241,6 +242,15 @@ class ChatService:
 
         logger = getLogger(__name__)
         logger.warning(event, extra={"error": repr(exc)})
+
+    def _log_context_info(self, stm_turns: int, ltm_snippets: int) -> None:
+        from logging import getLogger
+
+        logger = getLogger(__name__)
+        logger.info(
+            "chat.context.loaded",
+            extra={"stm_turns": stm_turns, "ltm_snippets": ltm_snippets},
+        )
 
     def _craft_reply(self, user_text: str, lang: str) -> str:
         if lang.lower().startswith("zh"):
