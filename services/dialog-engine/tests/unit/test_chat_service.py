@@ -39,6 +39,8 @@ class _StubLLMClient:
 
 class _FailingLLMClient:
     async def stream_chat(self, messages, **kwargs):
+        if False:
+            yield ""  # pragma: no cover - ensure object is async generator
         raise RuntimeError("boom")
 
 
