@@ -124,5 +124,19 @@ async def stream_text(
             except Exception:
                 stop_event.set()
 
-        await asyncio.gather(sender(), receiver())
+        receiver_task = asyncio.create_task(receiver())
+        try:
+            await sender()
+        finally:
+            if not receiver_task.done():
+                receiver_task.cancel()
+                try:
+                    await receiver_task
+                except asyncio.CancelledError:
+                    pass
+            if not ws.closed:
+                try:
+                    await ws.close()
+                except Exception:
+                    pass
     _ = first_chunk_ms  # reserved for future metrics wiring
