@@ -10,6 +10,17 @@ COPY tests /app/tests
 
 ENV PYTHONPATH=/app/src
 
+ENV ENABLE_REAL_LLM=false \
+    LLM_MODEL=gpt-4o-mini \
+    LLM_TEMPERATURE=0.7 \
+    LLM_MAX_TOKENS=1024 \
+    LLM_TOP_P=1.0 \
+    LLM_FREQUENCY_PENALTY=0.0 \
+    LLM_PRESENCE_PENALTY=0.0 \
+    LLM_REQUEST_TIMEOUT=30 \
+    LLM_RETRY_LIMIT=2 \
+    LLM_RETRY_BACKOFF_SECONDS=0.5
+
 EXPOSE 8100
 
 CMD ["python", "-m", "dialog_engine.app"]
