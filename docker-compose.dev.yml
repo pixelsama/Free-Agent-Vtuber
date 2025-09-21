@@ -161,6 +161,11 @@ services:
       - PGVECTOR_USER=${POSTGRES_USER:-ltm_user}
       - PGVECTOR_PASSWORD=${POSTGRES_PASSWORD:-ltm_password}
       - MEM0_CONFIG_PATH=config/mem0_config.yaml
+      - MEM0_LLM_PROVIDER=${MEM0_LLM_PROVIDER:-}
+      - MEM0_LLM_CONFIG_JSON=${MEM0_LLM_CONFIG_JSON:-}
+      - MEM0_EMBEDDER_PROVIDER=${MEM0_EMBEDDER_PROVIDER:-}
+      - MEM0_EMBEDDER_CONFIG_JSON=${MEM0_EMBEDDER_CONFIG_JSON:-}
+      - MEM0_API_KEY=${MEM0_API_KEY:-}
       - PYTHONPATH=/app
     volumes:
       - ./services/long-term-memory-python:/app

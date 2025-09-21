@@ -17,9 +17,40 @@ overrides instead of editing tracked files.
 | Mem0 API key (Cloud)   | `MEM0_API_KEY`               | Required for Mem0 Cloud users. Not needed for self-hosted Mem0. |
 | Base config path       | `MEM0_CONFIG_PATH`           | Defaults to `config/mem0_config.yaml`. Set when mounting a custom config. |
 | LLM provider override  | `MEM0_LLM_PROVIDER`          | Will be consumed once Phase 2 introduces runtime overrides. |
-| LLM config JSON        | `MEM0_LLM_CONFIG_JSON`       | JSON string with provider-specific options (Phase 2). |
+| LLM config JSON        | `MEM0_LLM_CONFIG_JSON`       | JSON string with provider-specific options (Phase 2+). |
 | Embedder provider      | `MEM0_EMBEDDER_PROVIDER`     | Used together with `MEM0_LLM_PROVIDER`. |
-| Embedder config JSON   | `MEM0_EMBEDDER_CONFIG_JSON`  | JSON string with embedder options (Phase 2). |
+| Embedder config JSON   | `MEM0_EMBEDDER_CONFIG_JSON`  | JSON string with embedder options (Phase 2+). |
+
+## Configuration Schema
+
+Overrides flow straight into the `llm` / `embedder` blocks that Mem0 expects.
+The service merges JSON snippets with the YAML defaults, so any provider listed
+in the official Mem0 matrix can be configured as follows:
+
+```json
+{
+  "llm": {
+    "provider": "<provider-name>",
+    "config": {
+      "model": "<model-id>",
+      "api_key": "...",
+      "base_url": "..."
+    }
+  },
+  "embedder": {
+    "provider": "<provider-name>",
+    "config": {
+      "model": "<embedding-model>",
+      "...": "..."
+    }
+  }
+}
+```
+
+`MEM0_LLM_PROVIDER` / `MEM0_EMBEDDER_PROVIDER` set the `provider` fields, while
+the `*_CONFIG_JSON` variables merge into the nested `config` objects. Any keys
+allowed by Mem0 (for example `ollama_base_url`, `deepseek_base_url`,
+`aws_region`) can be supplied.
 
 ## Provider Highlights
 
