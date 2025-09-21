@@ -1,14 +1,16 @@
-import { useState } from 'react'
-import type { FormEvent, ReactNode } from 'react'
-import { AudioLines, Laugh, Plus } from 'lucide-react'
+import { useLayoutEffect, useRef, useState } from 'react'
+import type { FormEvent, ReactNode, RefObject } from 'react'
+import { AudioLines, Plane, Plus } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useChatStore } from '@/stores/chat-store'
 
 export function MessageComposer() {
   const [draft, setDraft] = useState('')
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const addMessage = useChatStore((state) => state.addMessage)
+
+  useAutoResize(textareaRef, draft)
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -25,48 +27,65 @@ export function MessageComposer() {
   }
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div className="flex items-end gap-3 rounded-[28px] bg-[#E6E0EE] px-4 py-4 shadow-inner">
-        <IconPill label="添加附件">
+    <form onSubmit={handleSubmit} className="w-full">
+      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
+        <IconCircle label="添加附件" variant="ghost">
           <Plus className="h-4 w-4" />
-        </IconPill>
-        <IconPill label="插入表情">
-          <Laugh className="h-4 w-4" />
-        </IconPill>
-        <Textarea
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          placeholder="开始输入或粘贴指令，Shift + Enter 换行"
-          rows={2}
-          className="flex-1 resize-none border-none bg-transparent px-1 text-base text-[#1D1B20] shadow-none focus-visible:ring-0"
-        />
-        <IconPill label="文本模式" className="px-3">
-          <span className="text-sm font-medium">Tt</span>
-        </IconPill>
-        <IconPill label="语音输入">
-          <AudioLines className="h-4 w-4" />
-        </IconPill>
-        <Button type="submit" disabled={!draft.trim()} className="ml-1 h-10 rounded-full bg-[#625B71] px-6 text-sm font-semibold text-white">
-          发送
-        </Button>
+        </IconCircle>
+        <div className="flex flex-1 items-center gap-3 rounded-[24px] bg-[#E6E0EE] px-4 py-2 shadow-inner">
+          <Textarea
+            ref={textareaRef}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            rows={1}
+            aria-label="输入消息"
+            className="max-h-20 min-h-[28px] flex-1 resize-none border-none bg-transparent px-0 py-1 text-[16px] text-[#1D1B20] leading-[1.5] shadow-none focus-visible:ring-0"
+          />
+          <div className="flex items-center gap-2">
+            <IconCircle label="语音输入">
+              <AudioLines className="h-4 w-4" />
+            </IconCircle>
+            <button
+              type="submit"
+              disabled={!draft.trim()}
+              aria-label="发送"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#CAC4D0] bg-[#625B71] text-white transition hover:bg-[#514760] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#625B71]/40 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Plane className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
       </div>
     </form>
   )
 }
 
-interface IconPillProps {
+function useAutoResize(ref: RefObject<HTMLTextAreaElement | null>, value: string) {
+  useLayoutEffect(() => {
+    const element = ref.current
+    if (!element) return
+    element.style.height = 'auto'
+    element.style.height = `${Math.min(element.scrollHeight, 96)}px`
+  }, [ref, value])
+}
+
+interface IconCircleProps {
   readonly children: ReactNode
   readonly label: string
   readonly className?: string
+  readonly variant?: 'ghost' | 'default'
 }
 
-function IconPill({ children, label, className }: IconPillProps) {
+function IconCircle({ children, label, className, variant = 'default' }: IconCircleProps) {
+  const baseClasses =
+    'inline-flex h-11 w-11 items-center justify-center rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#625B71]/40'
+  const palette =
+    variant === 'ghost'
+      ? 'border-[#CAC4D0] bg-[#FEF7FF] text-[#625B71] hover:bg-[#E8DEF8]'
+      : 'border-[#DACFE6] bg-[#F7F2FA] text-[#625B71] hover:bg-[#E8DEF8]'
+
   return (
-    <button
-      type="button"
-      aria-label={label}
-      className={`inline-flex h-10 min-w-[40px] items-center justify-center rounded-full bg-[#F7F2FA] text-[#625B71] transition hover:bg-[#E8DEF8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#625B71]/40 ${className ?? ''}`}
-    >
+    <button type="button" aria-label={label} className={`${baseClasses} ${palette} ${className ?? ''}`}>
       {children}
     </button>
   )
