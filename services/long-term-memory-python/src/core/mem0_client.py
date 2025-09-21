@@ -7,13 +7,19 @@ Mem0框架客户端 - TDD循环2重构优化版本
 3. 增强错误处理和输入验证
 4. 改进日志记录和监控
 5. 自动资源管理，用户无需关心生命周期
+6. 配置增强：支持通过环境变量/JSON覆盖Mem0提供商设置
 """
 import asyncio
+import json
 import logging
+import os
 from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
 from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+import yaml
 
 from mem0 import Memory
 from src.models.memory import UserMemory, MemoryMetadata, MemoryCategory
@@ -34,6 +40,39 @@ class Mem0Service:
     - 资源管理：自动清理，用户无需关心生命周期
     """
     
+    SUPPORTED_LLM_PROVIDERS = {
+        "openai",
+        "anthropic",
+        "gemini",
+        "groq",
+        "ollama",
+        "together",
+        "aws_bedrock",
+        "azure_openai",
+        "litellm",
+        "deepseek",
+        "xai",
+        "sarvam",
+        "lmstudio",
+        "vllm",
+        "langchain",
+        "openai_structured",
+        "azure_openai_structured",
+    }
+
+    SUPPORTED_EMBED_PROVIDERS = {
+        "openai",
+        "ollama",
+        "huggingface",
+        "azure_openai",
+        "gemini",
+        "vertexai",
+        "together",
+        "lmstudio",
+        "langchain",
+        "aws_bedrock",
+    }
+
     def __init__(self, config: Dict[str, Any]):
         self.config = config
         self.logger = logging.getLogger(__name__)
@@ -64,23 +103,15 @@ class Mem0Service:
                 # 在线程池中初始化客户端
                 config_path = self.config.get("config_path", "config/mem0_config.yaml")
                 
-                if not Path(config_path).exists():
-                    self.logger.warning(f"Mem0配置文件不存在: {config_path}，使用默认配置")
-                    mem0_config = self._get_default_config()
-                    self._client = await asyncio.get_running_loop().run_in_executor(
-                        self._executor,
-                        Memory.from_config,
-                        mem0_config
-                    )
-                else:
-                    self._client = await asyncio.get_running_loop().run_in_executor(
-                        self._executor,
-                        Memory.from_config,
-                        config_path
-                    )
-                
+                mem0_config = self._compose_mem0_config()
+                self._client = await asyncio.get_running_loop().run_in_executor(
+                    self._executor,
+                    Memory.from_config,
+                    mem0_config
+                )
+
                 self.logger.info("Mem0客户端初始化成功")
-                
+
             except Exception as e:
                 self.logger.error(f"Mem0客户端初始化失败: {e}")
                 raise Mem0OperationError(f"无法初始化Mem0客户端: {e}")
@@ -336,3 +367,128 @@ class Mem0Service:
         except Exception as e:
             self.logger.error(f"转换UserMemory失败: {e}")
             raise
+
+    def _compose_mem0_config(self) -> Dict[str, Any]:
+        """加载并合并Mem0配置"""
+        base_config = self._load_base_config()
+        overrides = self._collect_overrides()
+        merged = self._apply_overrides(base_config, overrides)
+        self.logger.debug("Mem0最终配置: %s", merged)
+        return merged
+
+    def _load_base_config(self) -> Dict[str, Any]:
+        """从配置文件加载基础配置"""
+        config_path = self.config.get("config_path", "config/mem0_config.yaml")
+        path_obj = Path(config_path)
+
+        if path_obj.exists():
+            try:
+                with path_obj.open("r", encoding="utf-8") as fh:
+                    loaded = yaml.safe_load(fh) or {}
+                    return loaded
+            except Exception as exc:
+                self.logger.warning(
+                    "Mem0配置文件读取失败 (%s)，使用默认配置: %s", config_path, exc
+                )
+        else:
+            self.logger.info(
+                "Mem0配置文件不存在: %s，使用默认配置", config_path
+            )
+
+        return self._get_default_config()
+
+    def _collect_overrides(self) -> Dict[str, Any]:
+        """收集配置覆盖项（来自配置和环境变量）"""
+        overrides = {
+            "llm_provider": self.config.get("llm_provider"),
+            "llm_config": deepcopy(self.config.get("llm_config") or {}),
+            "embedding_provider": self.config.get("embedding_provider"),
+            "embedding_config": deepcopy(self.config.get("embedding_config") or {}),
+        }
+
+        env_llm_provider = os.getenv("MEM0_LLM_PROVIDER")
+        if env_llm_provider:
+            overrides["llm_provider"] = env_llm_provider.strip()
+
+        env_embedder_provider = os.getenv("MEM0_EMBEDDER_PROVIDER")
+        if env_embedder_provider:
+            overrides["embedding_provider"] = env_embedder_provider.strip()
+
+        env_llm_config = os.getenv("MEM0_LLM_CONFIG_JSON")
+        if env_llm_config:
+            try:
+                overrides["llm_config"] = json.loads(env_llm_config)
+            except json.JSONDecodeError:
+                self.logger.warning("MEM0_LLM_CONFIG_JSON 无法解析，忽略该覆盖项")
+
+        env_embedder_config = os.getenv("MEM0_EMBEDDER_CONFIG_JSON")
+        if env_embedder_config:
+            try:
+                overrides["embedding_config"] = json.loads(env_embedder_config)
+            except json.JSONDecodeError:
+                self.logger.warning("MEM0_EMBEDDER_CONFIG_JSON 无法解析，忽略该覆盖项")
+
+        return overrides
+
+    def _apply_overrides(
+        self,
+        base: Dict[str, Any],
+        overrides: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """应用覆盖项并返回最终配置"""
+        result = deepcopy(base)
+
+        # 确保结构存在
+        result.setdefault("llm", {})
+        result.setdefault("embedder", {})
+
+        self._apply_provider_override(
+            result["llm"],
+            overrides.get("llm_provider"),
+            overrides.get("llm_config"),
+            self.SUPPORTED_LLM_PROVIDERS,
+            "llm",
+        )
+
+        self._apply_provider_override(
+            result["embedder"],
+            overrides.get("embedding_provider"),
+            overrides.get("embedding_config"),
+            self.SUPPORTED_EMBED_PROVIDERS,
+            "embedder",
+        )
+
+        return result
+
+    def _apply_provider_override(
+        self,
+        target_section: Dict[str, Any],
+        provider_override: Optional[str],
+        config_override: Optional[Dict[str, Any]],
+        supported_providers: set,
+        section_name: str,
+    ) -> None:
+        """将提供商信息覆盖到目标配置段"""
+        if provider_override:
+            provider_key = provider_override.strip()
+            provider_key_lower = provider_key.lower()
+            if provider_key_lower not in supported_providers:
+                self.logger.warning(
+                    "%s 提供商 '%s' 未在已知列表中，如为新版本请忽略该警告",
+                    section_name,
+                    provider_key,
+                )
+            target_section["provider"] = provider_key
+
+        base_cfg = deepcopy(target_section.get("config") or {})
+        if isinstance(config_override, dict):
+            base_cfg.update(config_override)
+        elif config_override is not None:
+            self.logger.warning(
+                "%s 配置覆盖项必须为字典，当前类型: %s",
+                section_name,
+                type(config_override).__name__,
+            )
+
+        if base_cfg:
+            target_section["config"] = base_cfg
