@@ -373,7 +373,6 @@ class Mem0Service:
         base_config = self._load_base_config()
         overrides = self._collect_overrides()
         merged = self._apply_overrides(base_config, overrides)
-        self.logger.debug("Mem0最终配置: %s", merged)
         return merged
 
     def _load_base_config(self) -> Dict[str, Any]:
