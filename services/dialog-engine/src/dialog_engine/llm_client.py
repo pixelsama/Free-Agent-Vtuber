@@ -20,6 +20,14 @@ class LLMNotConfiguredError(RuntimeError):
     """Raised when trying to use the LLM client without runtime configuration."""
 
 
+class LLMStreamEmptyError(RuntimeError):
+    """Raised when an LLM stream finishes without emitting any text tokens."""
+
+    def __init__(self, message: str, *, tool_calls: Optional[list[Any]] = None) -> None:
+        super().__init__(message)
+        self.tool_calls = tool_calls or []
+
+
 class OpenAIChatClient:
     """Thin wrapper around AsyncOpenAI with retry-aware streaming."""
 
@@ -95,11 +103,33 @@ class OpenAIChatClient:
                         "max_tokens": params.get("max_tokens"),
                     },
                 )
+                has_content = False
+                collected_tool_calls: list[Any] = []
                 async for chunk in stream:
                     for choice in chunk.choices:
-                        delta = choice.delta.content
-                        if delta:
-                            yield delta
+                        delta = choice.delta
+                        if delta is None:
+                            continue
+                        text_delta = getattr(delta, "content", None)
+                        if text_delta:
+                            has_content = True
+                            yield text_delta
+                        tool_calls = getattr(delta, "tool_calls", None)
+                        if tool_calls:
+                            collected_tool_calls.extend(tool_calls)
+                if not has_content:
+                    logger.warning(
+                        "llm.stream.empty",
+                        extra={
+                            "model": params.get("model"),
+                            "tool_calls": collected_tool_calls,
+                            "attempt": attempt,
+                        },
+                    )
+                    raise LLMStreamEmptyError(
+                        "LLM stream produced no text delta",
+                        tool_calls=collected_tool_calls,
+                    )
                 logger.info(
                     "llm.stream.complete",
                     extra={"model": params["model"], "attempt": attempt},
@@ -124,4 +154,4 @@ class OpenAIChatClient:
         raise RuntimeError("LLM streaming failed after retries") from last_error
 
 
-__all__ = ["OpenAIChatClient", "LLMNotConfiguredError", "ChatMessage"]
+__all__ = ["OpenAIChatClient", "LLMNotConfiguredError", "LLMStreamEmptyError", "ChatMessage"]

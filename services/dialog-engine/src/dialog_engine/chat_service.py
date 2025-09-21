@@ -6,7 +6,7 @@ import time
 from collections.abc import AsyncGenerator, Callable
 from typing import Any, Dict, List, Optional
 
-from .llm_client import LLMNotConfiguredError, OpenAIChatClient
+from .llm_client import LLMNotConfiguredError, LLMStreamEmptyError, OpenAIChatClient
 from .ltm_client import LTMInlineClient
 from .memory_store import MemoryTurn, ShortTermMemoryStore
 from .settings import Settings, settings as runtime_settings
@@ -69,6 +69,9 @@ class ChatService:
                 ):
                     yield delta
                 return
+            except LLMStreamEmptyError as exc:
+                self.last_error = "llm_empty_stream"
+                self._log_llm_fallback(reason=f"empty_stream:{exc.tool_calls}")
             except LLMNotConfiguredError as exc:
                 self.last_error = "llm_not_configured"
                 self._log_llm_fallback(reason=str(exc))

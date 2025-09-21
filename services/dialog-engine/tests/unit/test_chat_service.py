@@ -4,6 +4,7 @@ from typing import Iterable, List, Optional
 import pytest
 
 from dialog_engine.chat_service import ChatService
+from dialog_engine.llm_client import LLMStreamEmptyError
 from dialog_engine.memory_store import MemoryTurn
 from dialog_engine.settings import (
     LLMSettings,
@@ -67,6 +68,13 @@ class _FailingLLMClient:
         if False:
             yield ""  # pragma: no cover - ensure object is async generator
         raise RuntimeError("boom")
+
+
+class _EmptyLLMClient:
+    async def stream_chat(self, messages, **kwargs):
+        if False:
+            yield ""  # pragma: no cover
+        raise LLMStreamEmptyError("no content", tool_calls=[{"name": "dummy"}])
 
 
 class _StubMemoryStore:
@@ -142,6 +150,22 @@ async def test_stream_reply_llm_failure_fallback():
     assert service.last_source == "mock"
     assert service.last_error == "RuntimeError"
     assert service.last_token_count > 0
+
+
+@pytest.mark.asyncio
+async def test_stream_reply_llm_empty_stream_fallback():
+    service = ChatService(
+        settings=_make_settings(enabled=True),
+        llm_client_factory=_EmptyLLMClient,
+    )
+
+    chunks = []
+    async for delta in service.stream_reply("live-empty", "test", meta={"lang": "en"}):
+        chunks.append(delta)
+
+    assert "You said: 'test'" in "".join(chunks)
+    assert service.last_source == "mock"
+    assert service.last_error == "llm_empty_stream"
 
 
 @pytest.mark.asyncio
