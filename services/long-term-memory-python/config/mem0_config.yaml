@@ -1,5 +1,10 @@
 version: v1.1
 
+# Base Mem0 configuration used by the long-term memory service.
+# Phase 2 will merge runtime overrides so any provider supported by Mem0 can
+# replace the values below without editing this file. Until then, these
+# defaults keep the existing OpenAI + pgvector behaviour.
+
 llm:
   provider: openai
   config:
@@ -20,3 +25,32 @@ vector_store:
     user: ltm_user
     password: ltm_password
     table_name: ltm_embeddings
+
+# -----------------------------------------------------------------------------
+# Provider examples (informational only — copy into overrides if needed):
+#
+# Anthropic LLM
+# llm:
+#   provider: anthropic
+#   config:
+#     model: claude-3-5-sonnet-20240620
+#     api_key: ${ANTHROPIC_API_KEY}
+#
+# Gemini Embeddings
+# embedder:
+#   provider: gemini
+#   config:
+#     model: models/text-embedding-004
+#     api_key: ${GOOGLE_API_KEY}
+#
+# Ollama Local Models
+# llm:
+#   provider: ollama
+#   config:
+#     model: llama3.1
+#     ollama_base_url: http://localhost:11434
+# embedder:
+#   provider: ollama
+#   config:
+#     model: all-minilm:latest
+#

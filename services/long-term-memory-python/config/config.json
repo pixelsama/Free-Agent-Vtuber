@@ -10,7 +10,11 @@
     "db": 0
   },
   "mem0": {
-    "config_path": "/app/config/mem0_config.yaml"
+    "config_path": "/app/config/mem0_config.yaml",
+    "llm_provider": null,
+    "llm_config": {},
+    "embedding_provider": null,
+    "embedding_config": {}
   },
   "pgvector": {
     "host": "localhost",

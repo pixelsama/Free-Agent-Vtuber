@@ -1,12 +1,16 @@
 """
 TDD循环2: Mem0框架集成测试
 """
-import pytest
-import pytest_asyncio
+import json
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
+import pytest
+import pytest_asyncio
+import yaml
+
 from src.core.mem0_client import Mem0Service
-from src.models.memory import UserMemory, MemoryMetadata, MemoryCategory
+from src.models.memory import MemoryCategory, MemoryMetadata, UserMemory
 
 
 class TestMem0Integration:
@@ -213,3 +217,85 @@ class TestMem0Integration:
         assert "动漫" in user_memory.content
         assert isinstance(user_memory.metadata, MemoryMetadata)
         assert user_memory.metadata.category == MemoryCategory.PREFERENCE
+
+
+class TestMem0Configuration:
+    """验证Mem0配置覆盖逻辑"""
+
+    @pytest.fixture()
+    def base_config_path(self, tmp_path: Path) -> Path:
+        config_path = tmp_path / "mem0.yaml"
+        with config_path.open("w", encoding="utf-8") as fh:
+            yaml.safe_dump(
+                {
+                    "llm": {
+                        "provider": "openai",
+                        "config": {"model": "gpt-4o-mini", "temperature": 0.2},
+                    },
+                    "embedder": {
+                        "provider": "openai",
+                        "config": {"model": "text-embedding-3-small"},
+                    },
+                },
+                fh,
+            )
+        return config_path
+
+    def test_compose_mem0_config_with_inline_overrides(self, base_config_path: Path):
+        """配置字典中的覆盖项应被正确合并"""
+        service = Mem0Service(
+            {
+                "config_path": str(base_config_path),
+                "llm_provider": "anthropic",
+                "llm_config": {"model": "claude-3-5-sonnet-20240620"},
+                "embedding_provider": "huggingface",
+                "embedding_config": {
+                    "model": "sentence-transformers/all-mpnet-base-v2",
+                    "trust_remote_code": True,
+                },
+            }
+        )
+
+        merged = service._compose_mem0_config()
+
+        assert merged["llm"]["provider"] == "anthropic"
+        assert merged["llm"]["config"]["model"] == "claude-3-5-sonnet-20240620"
+        # 原始配置值与覆盖项共存（temperature未被覆盖）
+        assert merged["llm"]["config"]["temperature"] == 0.2
+
+        assert merged["embedder"]["provider"] == "huggingface"
+        assert merged["embedder"]["config"]["model"] == "sentence-transformers/all-mpnet-base-v2"
+        assert merged["embedder"]["config"]["trust_remote_code"] is True
+
+    def test_env_overrides_take_precedence(
+        self, base_config_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        """环境变量应覆盖配置文件和字典中的设置"""
+        service = Mem0Service(
+            {
+                "config_path": str(base_config_path),
+                "llm_provider": "anthropic",
+                "llm_config": {"model": "claude-3"},
+                "embedding_provider": "openai",
+            }
+        )
+
+        monkeypatch.setenv("MEM0_LLM_PROVIDER", "gemini")
+        monkeypatch.setenv(
+            "MEM0_LLM_CONFIG_JSON",
+            json.dumps({"model": "models/gemini-1.5-pro-latest", "temperature": 0.4}),
+        )
+        monkeypatch.setenv("MEM0_EMBEDDER_PROVIDER", "gemini")
+        # 提供无效 JSON，确认不会覆盖原有配置
+        monkeypatch.setenv("MEM0_EMBEDDER_CONFIG_JSON", "{invalid json")
+
+        merged = service._compose_mem0_config()
+
+        assert merged["llm"]["provider"] == "gemini"
+        assert merged["llm"]["config"]["model"] == "models/gemini-1.5-pro-latest"
+        # 合并时保留默认温度（来自 base YAML）并允许新值覆盖
+        assert merged["llm"]["config"]["temperature"] == 0.4
+
+        assert merged["embedder"]["provider"] == "gemini"
+        # 无效 JSON 被忽略，保持原始模型
+        assert merged["embedder"]["config"]["model"] == "text-embedding-3-small"

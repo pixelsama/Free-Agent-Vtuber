@@ -2,11 +2,15 @@
 配置加载器
 """
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any, Dict
 
 import yaml
+
+
+logger = logging.getLogger(__name__)
 
 
 class ConfigLoader:
@@ -43,7 +47,30 @@ class ConfigLoader:
         
         # Mem0配置
         if "mem0" in config:
-            config["mem0"]["config_path"] = os.getenv("MEM0_CONFIG_PATH", config["mem0"]["config_path"])
+            mem0_cfg = config["mem0"]
+            mem0_cfg["config_path"] = os.getenv("MEM0_CONFIG_PATH", mem0_cfg.get("config_path"))
+
+            llm_provider = os.getenv("MEM0_LLM_PROVIDER")
+            if llm_provider:
+                mem0_cfg["llm_provider"] = llm_provider
+
+            embedder_provider = os.getenv("MEM0_EMBEDDER_PROVIDER")
+            if embedder_provider:
+                mem0_cfg["embedding_provider"] = embedder_provider
+
+            llm_cfg_raw = os.getenv("MEM0_LLM_CONFIG_JSON")
+            if llm_cfg_raw:
+                try:
+                    mem0_cfg["llm_config"] = json.loads(llm_cfg_raw)
+                except json.JSONDecodeError:
+                    logger.warning("Invalid JSON in MEM0_LLM_CONFIG_JSON; ignoring override")
+
+            embed_cfg_raw = os.getenv("MEM0_EMBEDDER_CONFIG_JSON")
+            if embed_cfg_raw:
+                try:
+                    mem0_cfg["embedding_config"] = json.loads(embed_cfg_raw)
+                except json.JSONDecodeError:
+                    logger.warning("Invalid JSON in MEM0_EMBEDDER_CONFIG_JSON; ignoring override")
         
         # 服务配置
         if "service" in config:
