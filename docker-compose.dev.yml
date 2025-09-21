@@ -45,12 +45,12 @@ services:
     environment:
       - PORT=8100
       - PYTHONPATH=/app/src
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
       - SYNC_TTS_STREAMING=${SYNC_TTS_STREAMING:-false}
       - SYNC_TTS_BARGE_IN=${SYNC_TTS_BARGE_IN:-false}
       - SYNC_TTS_PROVIDER=${SYNC_TTS_PROVIDER:-mock}
-      - OUTPUT_INGEST_WS_URL=ws://output-handler:8002/ws/ingest/tts
+      - OUTPUT_INGEST_WS_URL=${OUTPUT_INGEST_WS_URL:-ws://output-handler:8002/ws/ingest/tts}
       # Mock TTS defaults (can be overridden in .env for STOP testing)
       - MOCK_TTS_CHUNK_DELAY_MS=${MOCK_TTS_CHUNK_DELAY_MS:-200}
       - MOCK_TTS_CHUNK_COUNT=${MOCK_TTS_CHUNK_COUNT:-50}
@@ -63,6 +63,28 @@ services:
       - ENABLE_ASYNC_EXT=${ENABLE_ASYNC_EXT:-false}
       - OUTBOX_FLUSH_INTERVAL_MS=${OUTBOX_FLUSH_INTERVAL_MS:-500}
       - EVENT_STREAM_MAXLEN=${EVENT_STREAM_MAXLEN:-100000}
+      # Feature flags & LLM config
+      - ENABLE_REAL_LLM=${ENABLE_REAL_LLM:-false}
+      - ENABLE_SHORT_TERM_MEMORY=${ENABLE_SHORT_TERM_MEMORY:-true}
+      - STM_DB_PATH=${STM_DB_PATH:-/app/data/dialog_memory.sqlite}
+      - STM_CONTEXT_TURNS=${STM_CONTEXT_TURNS:-20}
+      - ENABLE_LTM_INLINE=${ENABLE_LTM_INLINE:-false}
+      - LTM_BASE_URL=${LTM_BASE_URL:-http://memory-python:8200}
+      - LTM_RETRIEVE_PATH=${LTM_RETRIEVE_PATH:-/v1/memory/retrieve}
+      - LTM_RETRIEVE_TIMEOUT=${LTM_RETRIEVE_TIMEOUT:-3}
+      - LTM_MAX_SNIPPETS=${LTM_MAX_SNIPPETS:-5}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
+      - OPENAI_ORG_ID=${OPENAI_ORG_ID:-}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4o-mini}
+      - LLM_TEMPERATURE=${LLM_TEMPERATURE:-0.7}
+      - LLM_MAX_TOKENS=${LLM_MAX_TOKENS:-1024}
+      - LLM_TOP_P=${LLM_TOP_P:-1.0}
+      - LLM_FREQUENCY_PENALTY=${LLM_FREQUENCY_PENALTY:-0.0}
+      - LLM_PRESENCE_PENALTY=${LLM_PRESENCE_PENALTY:-0.0}
+      - LLM_REQUEST_TIMEOUT=${LLM_REQUEST_TIMEOUT:-30}
+      - LLM_RETRY_LIMIT=${LLM_RETRY_LIMIT:-2}
+      - LLM_RETRY_BACKOFF_SECONDS=${LLM_RETRY_BACKOFF_SECONDS:-0.5}
     ports:
       - "8100:8100"
     volumes:
@@ -99,11 +121,11 @@ services:
       dockerfile: Dockerfile
     container_name: aivtuber-input-handler-dev
     environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
       - PYTHONPATH=/app
       - ENABLE_SYNC_CORE=${ENABLE_SYNC_CORE:-false}
-      - DIALOG_ENGINE_URL=http://dialog-engine:8100
+      - DIALOG_ENGINE_URL=${DIALOG_ENGINE_URL:-http://dialog-engine:8100}
     volumes:
       - ./services/input-handler-python:/app
       - temp_files:/tmp/aivtuber_tasks
