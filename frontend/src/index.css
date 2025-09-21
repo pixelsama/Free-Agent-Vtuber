@@ -1,68 +1,84 @@
-:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-@media (prefers-color-scheme: light) {
+@layer base {
   :root {
-    color: #213547;
-    background-color: #ffffff;
+    --background: 276 38.5% 94.9%; /* #F3EDF7 */
+    --foreground: 264 8.5% 11.6%; /* #1D1B20 */
+
+    --card: 293 100% 98.4%; /* #FEF7FF */
+    --card-foreground: 264 8.5% 11.6%;
+
+    --popover: 293 100% 98.4%;
+    --popover-foreground: 264 8.5% 11.6%;
+
+    --primary: 259 10.8% 40%; /* #625B71 */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 263 65% 92.2%; /* #E8DEF8 */
+    --secondary-foreground: 264 8.5% 11.6%;
+
+    --muted: 266 29.2% 90.6%; /* #E6E0EE */
+    --muted-foreground: 264 6.8% 29%; /* #49454F */
+
+    --accent: 263 45% 95%;
+    --accent-foreground: 264 6.8% 29%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 270 11.3% 79.2%; /* #CAC4D0 */
+    --input: 266 29.2% 90.6%;
+    --ring: 259 10.8% 40%;
+
+    --radius: 1.75rem;
+
+    --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+      sans-serif;
   }
-  a:hover {
-    color: #747bff;
+
+  .dark {
+    --background: 263 37% 10%;
+    --foreground: 210 20% 98%;
+
+    --card: 263 37% 12%;
+    --card-foreground: 210 20% 98%;
+
+    --popover: 263 37% 12%;
+    --popover-foreground: 210 20% 98%;
+
+    --primary: 263 70% 55%;
+    --primary-foreground: 210 20% 98%;
+
+    --secondary: 263 32% 22%;
+    --secondary-foreground: 210 20% 98%;
+
+    --muted: 263 32% 22%;
+    --muted-foreground: 263 8% 70%;
+
+    --accent: 263 32% 22%;
+    --accent-foreground: 210 20% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 85.7% 97.3%;
+
+    --border: 263 30% 30%;
+    --input: 263 30% 30%;
+    --ring: 263 70% 55%;
   }
-  button {
-    background-color: #f9f9f9;
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}
+
+@layer utilities {
+  .container-app {
+    @apply container mx-auto px-6 lg:px-10;
   }
 }
