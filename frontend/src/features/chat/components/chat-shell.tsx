@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { cn } from '@/lib/utils'
 import { Menu, MoreVertical, UserCircle2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -11,7 +12,11 @@ import { useChatStore } from '@/stores/chat-store'
 import { MessageComposer } from './message-composer'
 import { MessageBubble } from './message-bubble'
 
-export function ChatShell() {
+interface ChatShellProps {
+  readonly className?: string
+}
+
+export function ChatShell({ className }: ChatShellProps = {}) {
   const messages = useChatStore((state) => state.messages)
 
   const groupedMessages = useMemo(() => {
@@ -25,7 +30,7 @@ export function ChatShell() {
   }, [messages])
 
   return (
-    <div className="flex min-h-[520px] flex-1 flex-col rounded-xl bg-[#F7F2FA]">
+    <div className={cn('flex min-h-[520px] flex-1 flex-col rounded-lg bg-[#F7F2FA]', className)}>
       <div className="flex items-center justify-between rounded-t-xl bg-[#F0E7F7] px-6 py-4">
         <div className="flex items-center gap-4">
           <Button size="icon" variant="ghost" className="h-9 w-9 rounded-full text-[#625B71] hover:bg-[#E8DEF8]">
