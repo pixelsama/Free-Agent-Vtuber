@@ -78,7 +78,7 @@ interface IconCircleProps {
 
 function IconCircle({ children, label, className, variant = 'default' }: IconCircleProps) {
   const baseClasses =
-    'inline-flex h-11 w-11 items-center justify-center rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#625B71]/40'
+    'inline-flex h-11 w-11 items-center justify-center rounded-lg border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#625B71]/40'
   const palette =
     variant === 'ghost'
       ? 'border-[#CAC4D0] bg-[#FEF7FF] text-[#625B71] hover:bg-[#E8DEF8]'
