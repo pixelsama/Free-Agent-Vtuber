@@ -29,10 +29,10 @@ export function MessageComposer() {
   return (
     <form onSubmit={handleSubmit} className="w-full">
       <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
-        <IconCircle label="添加附件" variant="ghost">
+        <IconCircle label="添加附件" variant="ghost" className="rounded-lg">
           <Plus className="h-4 w-4" />
         </IconCircle>
-        <div className="flex flex-1 items-center gap-3 rounded-[24px] bg-[#E6E0EE] px-4 py-2 shadow-inner">
+        <div className="flex min-h-[64px] flex-1 items-center gap-3 rounded-lg border border-[#DED6EA] bg-[#F0E8F7] px-4 py-2">
           <Textarea
             ref={textareaRef}
             value={draft}
@@ -42,14 +42,14 @@ export function MessageComposer() {
             className="max-h-20 min-h-[28px] flex-1 resize-none border-none bg-transparent px-0 py-1 text-[16px] text-[#1D1B20] leading-[1.5] shadow-none focus-visible:ring-0"
           />
           <div className="flex items-center gap-2">
-            <IconCircle label="语音输入">
+            <IconCircle label="语音输入" className="rounded-lg">
               <AudioLines className="h-4 w-4" />
             </IconCircle>
             <button
               type="submit"
               disabled={!draft.trim()}
               aria-label="发送"
-              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#CAC4D0] bg-[#625B71] text-white transition hover:bg-[#514760] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#625B71]/40 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[#CAC4D0] bg-[#625B71] text-white transition hover:bg-[#514760] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#625B71]/40 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Plane className="h-4 w-4" />
             </button>
