@@ -3,26 +3,21 @@ import type { FormEvent, ReactNode, RefObject } from 'react'
 import { AudioLines, Plane, Plus } from 'lucide-react'
 
 import { Textarea } from '@/components/ui/textarea'
-import { useChatStore } from '@/stores/chat-store'
+import { useChatSession } from '@/features/chat/hooks/use-chat-session'
 
 export function MessageComposer() {
   const [draft, setDraft] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
-  const addMessage = useChatStore((state) => state.addMessage)
+  const { sendTextMessage } = useChatSession()
 
   useAutoResize(textareaRef, draft)
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const trimmed = draft.trim()
     if (!trimmed) return
 
-    addMessage({
-      id: crypto.randomUUID(),
-      role: 'user',
-      content: trimmed,
-      createdAt: Date.now(),
-    })
+    await sendTextMessage({ content: trimmed })
     setDraft('')
   }
 

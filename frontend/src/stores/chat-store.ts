@@ -9,36 +9,40 @@ export interface ChatMessage {
   readonly createdAt: number
 }
 
-const seededMessages: ChatMessage[] = [
-  {
-    id: 'seed-user-1',
-    role: 'user',
-    content: 'or we could make this?',
-    createdAt: Date.now() - 1000 * 60 * 3,
-  },
-  {
-    id: 'seed-assistant-1',
-    role: 'assistant',
-    content: 'that looks so good!',
-    createdAt: Date.now() - 1000 * 60 * 2,
-  },
-]
+export type UploadStatus = 'idle' | 'connecting' | 'uploading' | 'queued' | 'error'
+export type OutputStatus = 'idle' | 'connecting' | 'streaming' | 'completed' | 'error'
 
 interface ChatState {
   readonly taskId: string | null
   readonly messages: ChatMessage[]
-  readonly isStreaming: boolean
+  readonly uploadStatus: UploadStatus
+  readonly outputStatus: OutputStatus
+  readonly audioChunks: Uint8Array[]
+  readonly audioUrl: string | null
+  readonly lastError: string | null
   setTaskId: (taskId: string | null) => void
   addMessage: (message: ChatMessage) => void
   updateLastMessage: (updater: (message: ChatMessage) => ChatMessage) => void
-  setStreaming: (value: boolean) => void
+  setUploadStatus: (status: UploadStatus) => void
+  setOutputStatus: (status: OutputStatus) => void
+  appendAudioChunk: (chunk: Uint8Array) => void
+  finalizeAudio: () => void
+  setError: (message: string | null) => void
   reset: () => void
 }
 
-export const useChatStore = create<ChatState>((set) => ({
+function revokeUrl(url: string | null) {
+  if (url) URL.revokeObjectURL(url)
+}
+
+export const useChatStore = create<ChatState>((set, get) => ({
   taskId: null,
-  messages: seededMessages,
-  isStreaming: false,
+  messages: [],
+  uploadStatus: 'idle',
+  outputStatus: 'idle',
+  audioChunks: [],
+  audioUrl: null,
+  lastError: null,
   setTaskId: (taskId) => set({ taskId }),
   addMessage: (message) =>
     set((state) => ({
@@ -52,6 +56,41 @@ export const useChatStore = create<ChatState>((set) => ({
       nextMessages[lastIndex] = updater(nextMessages[lastIndex])
       return { messages: nextMessages }
     }),
-  setStreaming: (value) => set({ isStreaming: value }),
-  reset: () => set({ taskId: null, messages: seededMessages, isStreaming: false }),
+  setUploadStatus: (status) => set({ uploadStatus: status }),
+  setOutputStatus: (status) => set({ outputStatus: status }),
+  appendAudioChunk: (chunk) =>
+    set((state) => ({
+      audioChunks: [...state.audioChunks, chunk],
+    })),
+  finalizeAudio: () => {
+    const { audioChunks, audioUrl } = get()
+    revokeUrl(audioUrl)
+    if (!audioChunks.length) return
+    const blob = new Blob(audioChunks, { type: 'audio/mpeg' })
+    const url = URL.createObjectURL(blob)
+    set({ audioChunks: [], audioUrl: url })
+  },
+  setError: (message) => set({ lastError: message }),
+  reset: () => {
+    const { audioUrl } = get()
+    revokeUrl(audioUrl)
+    set({
+      taskId: null,
+      messages: [],
+      uploadStatus: 'idle',
+      outputStatus: 'idle',
+      audioChunks: [],
+      audioUrl: null,
+      lastError: null,
+    })
+  },
 }))
+
+export function createMessage(role: MessageRole, content: string): ChatMessage {
+  return {
+    id: crypto.randomUUID(),
+    role,
+    content,
+    createdAt: Date.now(),
+  }
+}
