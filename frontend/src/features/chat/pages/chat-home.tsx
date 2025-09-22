@@ -7,8 +7,8 @@ export function ChatHomePage() {
       <div className="mx-auto w-full max-w-[360px] lg:mx-0">
         <ChatShell />
       </div>
-      <div className="flex-1">
-        <Live2DPlaceholder />
+      <div className="flex flex-1">
+        <Live2DPlaceholder className="flex-1" />
       </div>
     </section>
   )
