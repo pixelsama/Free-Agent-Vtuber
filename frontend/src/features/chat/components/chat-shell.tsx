@@ -3,7 +3,6 @@ import { Menu, MoreVertical, UserCircle2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -26,8 +25,8 @@ export function ChatShell() {
   }, [messages])
 
   return (
-    <Card className="flex h-full min-h-[520px] flex-col rounded-[32px] border-[3px] border-[#E6E0EE] bg-[#FFFFFF] shadow-[0px_20px_36px_rgba(98,91,113,0.08)]">
-      <div className="flex items-center justify-between rounded-t-[28px] bg-[#FEF7FF] px-6 py-4">
+    <div className="flex min-h-[520px] flex-1 flex-col rounded-xl bg-[#F7F2FA]">
+      <div className="flex items-center justify-between rounded-t-xl bg-[#F0E7F7] px-6 py-4">
         <div className="flex items-center gap-4">
           <Button size="icon" variant="ghost" className="h-9 w-9 rounded-full text-[#625B71] hover:bg-[#E8DEF8]">
             <Menu className="h-5 w-5" />
@@ -60,7 +59,7 @@ export function ChatShell() {
         </div>
       </div>
 
-      <Separator className="bg-[#E6E0EE]" />
+      <Separator className="bg-[#E3DAEE]" />
 
       <div className="flex flex-1 flex-col overflow-hidden">
         <ScrollArea className="h-full flex-1 px-6 py-6">
@@ -70,11 +69,11 @@ export function ChatShell() {
             ))}
           </div>
         </ScrollArea>
-        <Separator className="bg-[#E6E0EE]" />
+        <Separator className="bg-[#E3DAEE]" />
         <div className="px-6 pb-6 pt-4">
           <MessageComposer />
         </div>
       </div>
-    </Card>
+    </div>
   )
 }
