@@ -277,7 +277,7 @@ class InputHandler:
             "meta": {"lang": "zh"}
         }
         try:
-            timeout = httpx.Timeout(connect=2.0, read=30.0, write=10.0)
+            timeout = httpx.Timeout(30.0, connect=2.0, read=30.0, write=10.0)
             async with httpx.AsyncClient(timeout=timeout) as client:
                 async with client.stream("POST", url, json=payload, headers={"Accept": "text/event-stream"}) as resp:
                     resp.raise_for_status()
