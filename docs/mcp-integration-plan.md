@@ -84,16 +84,7 @@
 
 - 目录建议：`services/plugins-mcp/`，包含：
   - `main.py`：入口，创建 Redis 连接，加入消费组 `plugins-workers`。
-  - `mcp_client.py`：封装与 MCP Server 的连接、鉴权和工具调用逻辑。
-  - `config.py`：读取环境变量（`ENABLE_MCP`, `MCP_SERVER_ENDPOINT`, `MCP_REQUEST_TIMEOUT_MS` 等）。
-  - `Dockerfile`、`requirements.txt`、`README.md`。
-
-- 核心流程：
-  1. `XREADGROUP` 订阅 `events.plugins`，批量拉取请求。
-  2. 基于 `toolName` 映射到 MCP 工具并调用，传入 `arguments`。
-  3. 获取 MCP 返回值后，通过 `XADD rpc.plugins.responses` 或 Redis Pub/Sub 发送响应消息，包含 `correlationId` 和 `toolCallId`。
-  4. 使用 `XACK` 标记消息已处理；异常时记录日志并视情况重试或发送失败事件。
-
+  - `mcp_client.py`：fejiwjfiijfojxcv
 ### 4.4 工具结果回传与继续推理
 
 1. `ChatService` 在派发请求后，参考 `fetch_ltm_context` 的模式阻塞等待：
