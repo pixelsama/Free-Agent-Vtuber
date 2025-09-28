@@ -2,11 +2,20 @@ import { ref, shallowRef } from 'vue';
 
 // --- Configuration ---
 // 在实际应用中，这些应该来自配置文件或环境变量
-// 注意: 如果你的前端和后端不在同一地址或端口，需要修改这里
-const apiProtocol = window.location.protocol;
 const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-const wsBaseUrl = `${wsProtocol}//${window.location.hostname}:8000`; // 假设后端在 8000 端口（仅保留 WS）
-const wsInputUrl = `${wsBaseUrl}/ws/input`;
+const stripTrailingSlash = (value) => (value.endsWith('/') ? value.slice(0, -1) : value);
+const normalizePathSegment = (value, fallback) => {
+  const raw = (value ?? fallback).trim();
+  return raw.replace(/^\/+/, '').replace(/\/+$/, '');
+};
+
+const wsBaseOrigin = stripTrailingSlash(
+  import.meta.env.VITE_WS_BASE_URL?.trim() || `${wsProtocol}//${window.location.host}`,
+);
+const wsInputPath = `/${normalizePathSegment(import.meta.env.VITE_WS_INPUT_PATH, 'ws/input')}`;
+const wsOutputBasePath = `/${normalizePathSegment(import.meta.env.VITE_WS_OUTPUT_PATH, 'ws/output')}`;
+const wsInputUrl = `${wsBaseOrigin}${wsInputPath}`;
+const buildOutputWsUrl = (taskId) => `${wsBaseOrigin}${wsOutputBasePath}/${taskId}`;
 
 // --- Reactive State ---
 const taskId = ref(null);
@@ -269,7 +278,7 @@ export function useApi() {
          return;
      }
 
-     const wsOutputUrl = `${wsBaseUrl}/ws/output/${currentTaskId}`;
+     const wsOutputUrl = buildOutputWsUrl(currentTaskId);
      console.log('Attempting to connect to output WebSocket:', wsOutputUrl);
 
      // Reset output-specific states
