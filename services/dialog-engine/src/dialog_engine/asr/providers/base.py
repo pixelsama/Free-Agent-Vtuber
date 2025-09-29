@@ -13,9 +13,13 @@ class AsrProvider(abc.ABC):
 
     async def stream(self, *, audio: bytes, options: AsrOptions) -> AsyncGenerator[AsrPartial, None]:
         result = await self.transcribe(audio=audio, options=options)
-        for partial in result.partials or []:
+        partials = list(result.partials or [])
+        final_emitted = False
+        for partial in partials:
+            final_emitted = final_emitted or partial.is_final
             yield partial
-        yield AsrPartial(text=result.text)
+        if not final_emitted:
+            yield AsrPartial(text=result.text, is_final=True)
 
     @abc.abstractmethod
     async def transcribe(self, *, audio: bytes, options: AsrOptions) -> AsrResult:

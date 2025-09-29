@@ -9,4 +9,4 @@ class MockAsrProvider(AsrProvider):
 
     async def transcribe(self, *, audio: bytes, options: AsrOptions) -> AsrResult:
         text = "mock transcription"
-        return AsrResult(text=text, partials=[AsrPartial(text=text)])
+        return AsrResult(text=text, partials=[AsrPartial(text=text, is_final=True)])

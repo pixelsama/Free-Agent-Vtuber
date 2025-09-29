@@ -14,6 +14,7 @@ class AsrOptions:
 class AsrPartial:
     text: str
     confidence: Optional[float] = None
+    is_final: bool = False
 
 
 @dataclass(slots=True)
