@@ -73,11 +73,22 @@ class LTMInlineSettings:
 
 
 @dataclass(frozen=True)
+class AsrSettings:
+    enabled: bool
+    max_bytes: int
+    max_duration_seconds: float
+    target_sample_rate: int
+    target_channels: int
+    default_lang: str | None
+
+
+@dataclass(frozen=True)
 class Settings:
     openai: OpenAISettings
     llm: LLMSettings
     short_term: ShortTermMemorySettings
     ltm_inline: LTMInlineSettings
+    asr: AsrSettings
 
 
 def load_settings() -> Settings:
@@ -116,11 +127,21 @@ def load_settings() -> Settings:
         max_snippets=_env_int("LTM_MAX_SNIPPETS", 5),
     )
 
+    asr_settings = AsrSettings(
+        enabled=_env_bool("ASR_ENABLED", True),
+        max_bytes=_env_int("ASR_MAX_BYTES", 5 * 1024 * 1024),
+        max_duration_seconds=_env_float("ASR_MAX_DURATION_SECONDS", 300.0),
+        target_sample_rate=_env_int("ASR_TARGET_SAMPLE_RATE", 16000),
+        target_channels=_env_int("ASR_TARGET_CHANNELS", 1),
+        default_lang=os.getenv("ASR_DEFAULT_LANG"),
+    )
+
     return Settings(
         openai=openai_settings,
         llm=llm_settings,
         short_term=short_term_settings,
         ltm_inline=ltm_inline_settings,
+        asr=asr_settings,
     )
 
 
@@ -132,6 +153,7 @@ __all__ = [
     "OpenAISettings",
     "ShortTermMemorySettings",
     "LTMInlineSettings",
+    "AsrSettings",
     "settings",
     "load_settings",
 ]
