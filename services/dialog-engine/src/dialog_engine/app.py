@@ -45,6 +45,7 @@ audio_ingestor = AudioIngestor(limits=_ingest_limits)
 audio_preprocessor = AudioPreprocessor(
     target_sample_rate=int(getattr(asr_cfg, "target_sample_rate", 16000)),
     target_channels=int(getattr(asr_cfg, "target_channels", 1)),
+    max_duration_seconds=float(getattr(asr_cfg, "max_duration_seconds", _ingest_limits.max_duration_seconds)),
 )
 
 try:
@@ -184,7 +185,13 @@ async def chat_audio(request: Request) -> JSONResponse:
     except Exception:
         raise HTTPException(status_code=400, detail="invalid json")
 
-    session_id, bundle, lang, meta = await _prepare_audio_request(body)
+    try:
+        session_id, bundle, lang, meta = await _prepare_audio_request(body)
+    except ValueError as exc:
+        message = str(exc).lower()
+        is_duration = "duration" in message
+        detail = "audio payload too large" if is_duration else "unsupported audio"
+        raise HTTPException(status_code=413 if is_duration else 400, detail=detail) from exc
 
     asr_started = time.perf_counter()
     asr_options = AsrOptions(
@@ -259,7 +266,13 @@ async def chat_audio_stream(request: Request) -> StreamingResponse:
     except Exception:
         raise HTTPException(status_code=400, detail="invalid json")
 
-    session_id, bundle, lang, meta = await _prepare_audio_request(body)
+    try:
+        session_id, bundle, lang, meta = await _prepare_audio_request(body)
+    except ValueError as exc:
+        message = str(exc).lower()
+        is_duration = "duration" in message
+        detail = "audio payload too large" if is_duration else "unsupported audio"
+        raise HTTPException(status_code=413 if is_duration else 400, detail=detail) from exc
 
     asr_started = time.perf_counter()
     asr_options = AsrOptions(
