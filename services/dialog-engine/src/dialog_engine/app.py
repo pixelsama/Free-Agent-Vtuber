@@ -55,6 +55,58 @@ except Exception:  # pragma: no cover - fallback to mock provider if config inva
     asr_service = AsrService()
 
 
+def _emit_async_events(
+    *,
+    session_id: str,
+    body: Dict[str, Any],
+    transcript: str,
+    reply_text: str,
+    stats: Dict[str, Any],
+) -> None:
+    if not ENABLE_ASYNC_EXT:
+        return
+    correlation_id = f"{session_id}#{body.get('turn') or 0}"
+    ts = int(time.time())
+    try:
+        outbox_add_event(
+            "LtmWriteRequested",
+            {
+                "correlationId": correlation_id,
+                "sessionId": session_id,
+                "turn": body.get("turn"),
+                "type": "LtmWriteRequested",
+                "payload": {"text": transcript, "reply": reply_text, "vectorize": True},
+                "ts": ts,
+            },
+        )
+        outbox_add_event(
+            "AnalyticsChatStats",
+            {
+                "correlationId": correlation_id,
+                "sessionId": session_id,
+                "turn": body.get("turn"),
+                "ttft_ms": stats.get("chat", {}).get("ttft_ms"),
+                "tokens": stats.get("chat", {}).get("tokens"),
+                "ts": ts,
+            },
+        )
+        asr_stats = stats.get("asr", {})
+        outbox_add_event(
+            "AnalyticsAsrStats",
+            {
+                "correlationId": correlation_id,
+                "sessionId": session_id,
+                "turn": body.get("turn"),
+                "provider": asr_stats.get("provider"),
+                "latency_ms": asr_stats.get("latency_ms"),
+                "duration_seconds": asr_stats.get("duration_seconds"),
+                "ts": ts,
+            },
+        )
+    except Exception:
+        pass
+
+
 async def _prepare_audio_request(body: Dict[str, Any]) -> tuple[str, AudioBundle, str | None, Dict[str, Any]]:
     session_id = str(body.get("sessionId") or "default")
     raw_audio = body.get("audio")
@@ -210,6 +262,8 @@ async def chat_audio(request: Request) -> JSONResponse:
     if not transcript:
         raise HTTPException(status_code=502, detail="empty transcript")
 
+    await chat_service.remember_turn(session_id=session_id, role="user", content=transcript)
+
     meta = dict(meta)
     if lang and not meta.get("lang"):
         meta["lang"] = lang
@@ -226,6 +280,8 @@ async def chat_audio(request: Request) -> JSONResponse:
 
     reply_completed = time.perf_counter()
     reply_text = "".join(reply_segments)
+
+    await chat_service.remember_turn(session_id=session_id, role="assistant", content=reply_text)
 
     stats = {
         "asr": {
@@ -252,6 +308,14 @@ async def chat_audio(request: Request) -> JSONResponse:
 
     if asr_result.partials:
         response_payload["partials"] = [partial.text for partial in asr_result.partials]
+
+    _emit_async_events(
+        session_id=session_id,
+        body=body,
+        transcript=transcript,
+        reply_text=reply_text,
+        stats=stats,
+    )
 
     return JSONResponse(response_payload)
 
@@ -292,6 +356,8 @@ async def chat_audio_stream(request: Request) -> StreamingResponse:
     if not transcript:
         raise HTTPException(status_code=502, detail="empty transcript")
 
+    await chat_service.remember_turn(session_id=session_id, role="user", content=transcript)
+
     meta = dict(meta)
     if lang and not meta.get("lang"):
         meta["lang"] = lang
@@ -326,6 +392,8 @@ async def chat_audio_stream(request: Request) -> StreamingResponse:
         reply_completed = time.perf_counter()
         reply_text = "".join(reply_segments)
 
+        await chat_service.remember_turn(session_id=session_id, role="assistant", content=reply_text)
+
         stats = {
             "asr": {
                 "provider": asr_result.provider or asr_service.provider.name,
@@ -351,33 +419,13 @@ async def chat_audio_stream(request: Request) -> StreamingResponse:
 
         yield _sse_format("done", done_payload)
 
-        if ENABLE_ASYNC_EXT:
-            correlation_id = f"{session_id}#{body.get('turn') or 0}"
-            try:
-                outbox_add_event(
-                    "LtmWriteRequested",
-                    {
-                        "correlationId": correlation_id,
-                        "sessionId": session_id,
-                        "turn": body.get("turn"),
-                        "type": "LtmWriteRequested",
-                        "payload": {"text": transcript, "reply": reply_text, "vectorize": True},
-                        "ts": int(time.time()),
-                    },
-                )
-                outbox_add_event(
-                    "AnalyticsChatStats",
-                    {
-                        "correlationId": correlation_id,
-                        "sessionId": session_id,
-                        "turn": body.get("turn"),
-                        "ttft_ms": stats["chat"]["ttft_ms"],
-                        "tokens": stats["chat"]["tokens"],
-                        "ts": int(time.time()),
-                    },
-                )
-            except Exception:
-                pass
+        _emit_async_events(
+            session_id=session_id,
+            body=body,
+            transcript=transcript,
+            reply_text=reply_text,
+            stats=stats,
+        )
 
     headers = {"Cache-Control": "no-cache", "Connection": "keep-alive"}
     return StreamingResponse(event_generator(), media_type="text/event-stream", headers=headers)

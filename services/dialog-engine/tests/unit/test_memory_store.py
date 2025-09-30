@@ -46,3 +46,15 @@ async def test_fetch_recent_returns_turns(tmp_path: Path):
 
     assert [turn.role for turn in result] == ["user", "assistant", "system"]
     assert isinstance(result[0], MemoryTurn)
+
+
+@pytest.mark.asyncio
+async def test_append_turn_creates_db(tmp_path: Path):
+    db_path = tmp_path / "memory.sqlite"
+    store = ShortTermMemoryStore(db_path=str(db_path), default_limit=5)
+
+    await store.append_turn(session_id="sess", role="user", content="hello")
+
+    turns = await store.fetch_recent("sess")
+
+    assert turns and turns[-1].content == "hello"
