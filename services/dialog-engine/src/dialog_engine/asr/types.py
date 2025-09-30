@@ -8,6 +8,7 @@ from typing import Iterable, Optional
 class AsrOptions:
     lang: Optional[str] = None
     enable_timestamps: bool = False
+    sample_rate: Optional[int] = None
 
 
 @dataclass(slots=True)

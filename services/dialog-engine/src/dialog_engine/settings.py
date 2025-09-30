@@ -75,11 +75,17 @@ class LTMInlineSettings:
 @dataclass(frozen=True)
 class AsrSettings:
     enabled: bool
+    provider: str
     max_bytes: int
     max_duration_seconds: float
     target_sample_rate: int
     target_channels: int
     default_lang: str | None
+    whisper_model: str
+    whisper_device: str
+    whisper_compute_type: str
+    whisper_beam_size: int
+    whisper_cache_dir: str | None
 
 
 @dataclass(frozen=True)
@@ -129,11 +135,17 @@ def load_settings() -> Settings:
 
     asr_settings = AsrSettings(
         enabled=_env_bool("ASR_ENABLED", True),
+        provider=os.getenv("ASR_PROVIDER", "mock"),
         max_bytes=_env_int("ASR_MAX_BYTES", 5 * 1024 * 1024),
         max_duration_seconds=_env_float("ASR_MAX_DURATION_SECONDS", 300.0),
         target_sample_rate=_env_int("ASR_TARGET_SAMPLE_RATE", 16000),
         target_channels=_env_int("ASR_TARGET_CHANNELS", 1),
         default_lang=os.getenv("ASR_DEFAULT_LANG"),
+        whisper_model=os.getenv("ASR_WHISPER_MODEL", "base"),
+        whisper_device=os.getenv("ASR_WHISPER_DEVICE", "auto"),
+        whisper_compute_type=os.getenv("ASR_WHISPER_COMPUTE_TYPE", "int8"),
+        whisper_beam_size=_env_int("ASR_WHISPER_BEAM_SIZE", 1),
+        whisper_cache_dir=os.getenv("ASR_WHISPER_CACHE_DIR"),
     )
 
     return Settings(

@@ -46,7 +46,12 @@ audio_preprocessor = AudioPreprocessor(
     target_sample_rate=int(getattr(asr_cfg, "target_sample_rate", 16000)),
     target_channels=int(getattr(asr_cfg, "target_channels", 1)),
 )
-asr_service = AsrService()
+
+try:
+    asr_service = AsrService.from_settings(asr_cfg)
+except Exception:  # pragma: no cover - fallback to mock provider if config invalid
+    logger.exception("chat.audio.provider_init_failed")
+    asr_service = AsrService()
 
 
 async def _prepare_audio_request(body: Dict[str, Any]) -> tuple[str, AudioBundle, str | None, Dict[str, Any]]:
@@ -182,7 +187,10 @@ async def chat_audio(request: Request) -> JSONResponse:
     session_id, bundle, lang, meta = await _prepare_audio_request(body)
 
     asr_started = time.perf_counter()
-    asr_options = AsrOptions(lang=lang or getattr(asr_cfg, "default_lang", None))
+    asr_options = AsrOptions(
+        lang=lang or getattr(asr_cfg, "default_lang", None),
+        sample_rate=bundle.metadata.sample_rate,
+    )
     try:
         asr_result = await asr_service.transcribe_bundle(bundle, options=asr_options)
     except Exception as exc:  # pragma: no cover - provider errors converted to HTTP layer
@@ -254,7 +262,10 @@ async def chat_audio_stream(request: Request) -> StreamingResponse:
     session_id, bundle, lang, meta = await _prepare_audio_request(body)
 
     asr_started = time.perf_counter()
-    asr_options = AsrOptions(lang=lang or getattr(asr_cfg, "default_lang", None))
+    asr_options = AsrOptions(
+        lang=lang or getattr(asr_cfg, "default_lang", None),
+        sample_rate=bundle.metadata.sample_rate,
+    )
     try:
         asr_result = await asr_service.transcribe_bundle(bundle, options=asr_options)
     except Exception as exc:  # pragma: no cover - provider errors converted to HTTP layer
