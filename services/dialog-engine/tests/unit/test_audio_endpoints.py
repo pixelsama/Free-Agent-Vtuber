@@ -122,7 +122,7 @@ def test_chat_audio_stream_records_memory(monkeypatch, client):
 
     payload = {"sessionId": "sess", "audio": base64.b64encode(b"foo").decode("ascii")}
     with client.stream("POST", "/chat/audio/stream", json=payload) as resp:
-        list(resp.iter_content())
+        list(resp.iter_text())
 
     assert ("user", "你好") in recorded
     assert ("assistant", "hello") in recorded
