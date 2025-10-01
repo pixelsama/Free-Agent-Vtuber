@@ -128,6 +128,8 @@ Client -> /chat/audio (REST or WS) -> Audio Ingestor -> Preprocessor -> ASR Pipe
    - Add Postman/VSCode REST examples.
    - Provide migration notes explaining deprecation of old ASR/chat/tts services.
 
+   _Status_: ✅ README created with endpoint summary, environment variables, dependency list, curl/SSE examples, and migration notes covering the legacy ASR/chat/TTS retirement (`services/dialog-engine/README.md`).
+
 ## 9. Milestones
 1. **MVP (Week 1)**: `/chat/audio` sync endpoint with mock ASR provider, plumbing to chat pipeline, minimal tests.
 2. **Whisper Integration (Week 2)**: local model support, resource limits, SSE streaming with partials.
@@ -144,4 +146,3 @@ Client -> /chat/audio (REST or WS) -> Audio Ingestor -> Preprocessor -> ASR Pipe
 - Do we need diarization or word-level timestamps in MVP? (currently no, but interface leaves room in `AsrResult`.)
 - Should ASR operate in background tasks or run inline per request? (MVP inline, revisit when concurrency requirements known.)
 - Any compliance requirements for storing voice data? (Assume no persistent storage beyond temp files.)
-
