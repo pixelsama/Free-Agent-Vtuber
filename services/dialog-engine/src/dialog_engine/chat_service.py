@@ -118,6 +118,18 @@ class ChatService:
             await asyncio.sleep(0.02 + random.random() * 0.03)
             yield word + (" " if not word.endswith("\n") else "")
 
+    async def remember_turn(self, session_id: str, *, role: str, content: str) -> None:
+        if not content or not content.strip():
+            return
+        cfg = self._settings.short_term
+        if not cfg.enabled:
+            return
+        store = self._ensure_memory_store()
+        try:
+            await store.append_turn(session_id=session_id, role=role, content=content.strip())
+        except Exception as exc:  # pragma: no cover - best effort log
+            self._log_context_warning("stm.append.error", exc)
+
     async def _emit_with_metrics(
         self,
         generator: AsyncGenerator[str, None],

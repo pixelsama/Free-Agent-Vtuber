@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import os
 import sqlite3
+import time
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -71,6 +72,36 @@ class ShortTermMemoryStore:
             return []
         except RuntimeError:
             return []
+
+    async def append_turn(self, *, session_id: str, role: str, content: str) -> None:
+        if not self._db_path or not content.strip():
+            return
+
+        def _insert() -> None:
+            os.makedirs(os.path.dirname(self._db_path) or ".", exist_ok=True)
+            conn = sqlite3.connect(self._db_path)
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS turns (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        session_id TEXT NOT NULL,
+                        role TEXT NOT NULL,
+                        text TEXT NOT NULL,
+                        created_at INTEGER NOT NULL
+                    )
+                    """,
+                )
+                cur.execute(
+                    "INSERT INTO turns(session_id, role, text, created_at) VALUES(?,?,?,?)",
+                    (session_id, role, content, int(time.time())),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+        await asyncio.to_thread(_insert)
 
 
 __all__ = ["ShortTermMemoryStore", "MemoryTurn"]

@@ -7,6 +7,7 @@ from dialog_engine.chat_service import ChatService
 from dialog_engine.llm_client import LLMStreamEmptyError
 from dialog_engine.memory_store import MemoryTurn
 from dialog_engine.settings import (
+    AsrSettings,
     LLMSettings,
     LTMInlineSettings,
     OpenAISettings,
@@ -47,6 +48,20 @@ def _make_settings(
             retrieve_path="/ltm",
             timeout=1.0,
             max_snippets=3,
+        ),
+        asr=AsrSettings(
+            enabled=True,
+            provider="mock",
+            max_bytes=1024 * 1024,
+            max_duration_seconds=60.0,
+            target_sample_rate=16000,
+            target_channels=1,
+            default_lang="zh",
+            whisper_model="base",
+            whisper_device="auto",
+            whisper_compute_type="int8",
+            whisper_beam_size=1,
+            whisper_cache_dir=None,
         ),
     )
 
