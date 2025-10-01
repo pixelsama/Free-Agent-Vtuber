@@ -122,7 +122,13 @@ def test_chat_audio_stream_records_memory(monkeypatch, client):
 
     payload = {"sessionId": "sess", "audio": base64.b64encode(b"foo").decode("ascii")}
     with client.stream("POST", "/chat/audio/stream", json=payload) as resp:
-        list(resp.iter_text())
+        chunks = list(resp.iter_text())
+
+    transcript_stream = "".join(chunks)
+    sse_events = [line for line in transcript_stream.splitlines() if line.startswith("event:")]
+
+    assert sse_events[:2] == ["event: asr-final", "event: text-delta"]
+    assert sse_events[-1] == "event: done"
 
     assert ("user", "你好") in recorded
     assert ("assistant", "hello") in recorded
