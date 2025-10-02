@@ -1,6 +1,6 @@
 # 后端接口总览
 
-本文档汇总当前各个后端服务（API Gateway、Input Handler、Output Handler、Manager UI 等）对外提供的接口，供前端和运维同学查询。除非特别说明，所有返回体均为 `application/json`，字符编码为 UTF-8。
+本文档汇总当前各个后端服务（API Gateway、Input Handler、Output Handler 等）对外提供的接口，供前端和运维同学查询。除非特别说明，所有返回体均为 `application/json`，字符编码为 UTF-8。
 
 ## 服务与基础地址
 
@@ -9,8 +9,6 @@
 | API Gateway | `services/gateway-python` | `8000` | 前端统一入口，负责 WebSocket 代理、控制指令转发、ASR 任务入队 | 前端统一连接 `http(s)://<gateway-host>:8000`
 | Input Handler | `services/input-handler-python` | `8001` | 直接处理用户输入的原始服务，通常通过 Gateway 访问 | 仅测试/排查时直连
 | Output Handler | `services/output-handler-python` | `8002` | 负责向前端推送 AI 文本+音频结果，支持内部 TTS 推流 | 通过 Gateway 代理访问
-| Manager UI | `manager` | `5000` | 后端服务管理界面与日志 API | 后台运维使用
-
 ---
 
 ## 1. API Gateway（端口 8000）
@@ -111,34 +109,7 @@
 
 ---
 
-## 4. Manager UI（端口 5000）
-
-### 4.1 页面
-
-- `GET /` — 返回管理页面 HTML。
-
-### 4.2 服务控制 API
-
-| 方法 & 路径 | 功能 | 请求体 | 响应示例 |
-| --- | --- | --- | --- |
-| `GET /api/services` | 列出所有可管控服务及其状态 | 无 | `[ {"id":"gateway-python","name":"网关模块","status":"running"}, ... ]` |
-| `POST /api/services/<service_id>/start` | 启动指定服务 | 无 | `{ "success": true, "message": "服务启动成功" }` |
-| `POST /api/services/<service_id>/stop` | 停止指定服务 | 无 | `{ "success": true, "message": "服务停止成功" }` |
-| `GET /api/services/<service_id>/status` | 查询服务是否在运行 | 无 | `{ "status": "running" }` |
-
-### 4.3 日志 API
-
-| 方法 & 路径 | 功能 | 响应格式 |
-| --- | --- | --- |
-| `GET /api/logs` | 获取所有服务最近 500 条日志 | `[ {"timestamp": "2025-02-01 10:00:00", "service_id": "gateway-python", "message": "...", "type": "stdout"}, ... ]` |
-| `GET /api/logs/<service_id>` | 获取单个服务日志 | 同上 |
-| `GET /api/logs/stream` | Server-Sent Events 实时日志 | SSE：`data: {...}\n\n`，空闲 1 秒发送心跳 `{"type":"heartbeat"}`；当前实现返回 `text/plain` MIME，原生 `EventSource` 会被拒绝，建议使用 `fetch`+`ReadableStream` |
-| `POST /api/logs/clear/<service_id>` | 清空指定服务日志 | `{ "success": true }` |
-| `POST /api/logs/clear` | 清空全部日志 | `{ "success": true }` |
-
----
-
-## 5. 内部事件总线（Redis）参考
+## 4. 内部事件总线（Redis）参考
 
 > 以下为服务间通信使用的队列与频道，前端通常无须直接操作，但有助于理解链路。
 
@@ -152,7 +123,7 @@
 
 ---
 
-## 6. 常用环境变量与说明
+## 5. 常用环境变量与说明
 
 | 变量 | 默认值 | 作用范围 | 说明 |
 | --- | --- | --- | --- |
@@ -166,7 +137,7 @@
 
 ---
 
-## 7. 接口使用建议
+## 6. 接口使用建议
 
 1. **前端生产路径**：仅需连接 Gateway 的 `/ws/input` 与 `/ws/output/{task_id}`，其他接口可通过 HTTP 调用（如 `/control/stop`）。
 2. **任务生命周期**：同一个 `task_id` 应在输入确认后立即建立输出连接，避免超时（默认 5 分钟）。
@@ -175,6 +146,6 @@
    - 流式 TTS 会返回原始 PCM 字节，`total_chunks=null` 且以 `control:END` 结束；需要在前端自行构建播放缓冲或转码。
 4. **旧链路迁移**：基于队列 `user_input_queue` / `ai_responses` 的旧链路已停用；文本、流式文本与音频推送全部走上述 WebSocket 协议，现有字段顺序保持不变。
 5. **错误兜底**：若输出连接收到 `status=error`，前端可提示“系统繁忙”并允许用户重试。
-6. **调试排查**：可通过 Manager UI 查看服务状态、拉取实时日志，或直接访问各服务的 `/health` 端点确认连通性。
+6. **调试排查**：可通过 `docker compose logs` 或各服务的 `/health` 端点确认连通性，必要时进入容器执行诊断命令。
 
 > 文档最后更新：2025-03-20（请在修改接口后同步更新此文档）。

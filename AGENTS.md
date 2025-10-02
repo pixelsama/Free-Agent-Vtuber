@@ -2,14 +2,12 @@
 
 ## Project Structure & Modules
 - `services/` — Python microservices: `dialog-engine/`, `gateway-python/`, `input-handler-python/`, `memory-python/`, `long-term-memory-python/`, `output-handler-python/`, `async-workers/` (each has its own `main.py`, `Dockerfile`, and often `tests/`).
-- `manager/` — Flask service manager UI (`app.py`, `start.sh`).
 - `front_end/` — Vue 3 + Vite UI (`src/`, `package.json`).
 - `docs/` — architecture and plans.  `utils/` — shared helpers.  `.env.example` — config template.
 
 ## Build, Test, and Run
 - Docker (full stack): `docker compose up -d`
   - Dev hot-reload: `docker compose -f docker-compose.dev.yml up`
-- Manager UI (local): `bash manager/start.sh` → http://localhost:5000
 - Gateway (Docker): exposed on `:8000`. Redis on `:6379`, Postgres on `:5432`.
 - Frontend: `cd front_end && npm install && npm run dev` (build: `npm run build`).
 - Python dev tools: `pip install -r requirements-dev.txt`

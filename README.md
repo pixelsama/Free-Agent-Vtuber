@@ -77,14 +77,6 @@ docker compose up -d
 # docker compose -f docker-compose.dev.yml up
 ```
 
-### Manager（可选）
-
-```bash
-bash manager/start.sh
-```
-
-访问 http://localhost:5000 管理服务。
-
 ### 前端开发
 
 ```bash
@@ -132,7 +124,7 @@ pytest -q
 - [🚧] **Phase 1: 架构骨架验证 (The Backbone)**
   - [x] 微服务架构搭建
   - [x] Redis 消息总线集成
-  - [x] 服务管理器开发
+  - [x] 服务管理器开发（已退役）
   - [x] 前端交互界面开发
   - [🚧] 服务间通信优化
 - [ ] **Phase 2: 赋予 "形体" (The Body)**

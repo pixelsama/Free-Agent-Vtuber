@@ -31,7 +31,6 @@ graph TD
   end
 
   subgraph Ops["运维与管理"]
-    ManagerUI["Manager UI<br/>manager/"]
     Observability["日志与监控<br/>(SSE / Metrics)"]
   end
 
@@ -60,14 +59,8 @@ graph TD
   LTM -- "长期记忆存档" --> Postgres
   OH -- "音频缓存" --> ObjectStore
 
-  ManagerUI -- "服务管理" --> APIGW
-  ManagerUI -- "服务控制" --> IH
-  ManagerUI -- "服务控制" --> OH
-  ManagerUI -- "服务控制" --> DE
-  ManagerUI -- "日志查询" --> Observability
-
   Observability -- "日志收集" --> Redis
-  Observability -- "监控数据" --> ManagerUI
+  Observability -- "监控可视化" --> FE
 
 ```
 
