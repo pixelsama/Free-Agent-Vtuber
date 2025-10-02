@@ -48,9 +48,12 @@
      {"status":"success","task_id":"<uuid>","content":"AI 回复文本","audio_present":true|false}
      ```
   2. 若包含音频，服务器按以下循环发送：
-     - 音频块元数据：`{"type":"audio_chunk","task_id":"<uuid>","chunk_id":0,"total_chunks":N}`
-     - 立刻跟随对应的二进制音频数据。
-  3. 全部块发送结束后：`{"type":"audio_complete","task_id":"<uuid>"}`。
+     - 音频块元数据：`{"type":"audio_chunk","task_id":"<uuid>","chunk_id":0,"total_chunks":N}`。
+       - 当下游返回的是文件式结果（如 TTS 服务生成的 MP3 文件）时，`total_chunks` 为实际总块数，二进制段为该文件的 MP3 数据。
+       - 当启用了流式 TTS（经 `/ws/ingest/tts` 推流）时，`total_chunks` 恒为 `null`，二进制段为原始 PCM 字节流（沿用上游采样率与量化，Edge TTS 默认 24 kHz / 16-bit / mono），不会再封装容器格式。
+  3. 结束信号：
+     - 文件式结果会在所有块发送完后推送 `{"type":"audio_complete","task_id":"<uuid>"}`。
+     - 流式 TTS 则转发上游的控制消息，如 `{"type":"control","action":"END","task_id":"<uuid>"}` 表示播报完成，整个过程中不会额外发送 `audio_complete`。
   4. 如出现错误，则推送：`{"status":"error","error":"..."}`。
 
 ### 1.2 HTTP 接口
@@ -129,7 +132,7 @@
 | --- | --- | --- |
 | `GET /api/logs` | 获取所有服务最近 500 条日志 | `[ {"timestamp": "2025-02-01 10:00:00", "service_id": "gateway-python", "message": "...", "type": "stdout"}, ... ]` |
 | `GET /api/logs/<service_id>` | 获取单个服务日志 | 同上 |
-| `GET /api/logs/stream` | Server-Sent Events 实时日志 | SSE：`data: {...}\n\n`，空闲 1 秒发送心跳 `{"type":"heartbeat"}` |
+| `GET /api/logs/stream` | Server-Sent Events 实时日志 | SSE：`data: {...}\n\n`，空闲 1 秒发送心跳 `{"type":"heartbeat"}`；当前实现返回 `text/plain` MIME，原生 `EventSource` 会被拒绝，建议使用 `fetch`+`ReadableStream` |
 | `POST /api/logs/clear/<service_id>` | 清空指定服务日志 | `{ "success": true }` |
 | `POST /api/logs/clear` | 清空全部日志 | `{ "success": true }` |
 
@@ -172,8 +175,10 @@
 
 1. **前端生产路径**：仅需连接 Gateway 的 `/ws/input` 与 `/ws/output/{task_id}`，其他接口可通过 HTTP 调用（如 `/control/stop`）。
 2. **任务生命周期**：同一个 `task_id` 应在输入确认后立即建立输出连接，避免超时（默认 5 分钟）。
-3. **音频处理**：目前输出音频为 MP3，务必按照 `chunk_id` 顺序累积并在 `audio_complete` 后合并。
+3. **音频处理**：
+   - 文件式结果（`audio_file` 字段存在）会返回 MP3 块，保持 `chunk_id` 顺序并在 `audio_complete` 后合并。
+   - 流式 TTS 会返回原始 PCM 字节，`total_chunks=null` 且以 `control:END` 结束；需要在前端自行构建播放缓冲或转码。
 4. **错误兜底**：若输出连接收到 `status=error`，前端可提示“系统繁忙”并允许用户重试。
 5. **调试排查**：可通过 Manager UI 查看服务状态、拉取实时日志，或直接访问各服务的 `/health` 端点确认连通性。
 
-> 文档最后更新：2025-09-27（请在修改接口后同步更新此文档）。
+> 文档最后更新：2025-03-19（请在修改接口后同步更新此文档）。
