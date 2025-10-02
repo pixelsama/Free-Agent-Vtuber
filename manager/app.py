@@ -18,13 +18,13 @@ service_logs = defaultdict(lambda: deque(maxlen=1000))
 log_queue = queue.Queue()
 
 SERVICE_CONFIG = {
-    'chat-ai-python': {
-        'path': '../services/chat-ai-python',
-        'main': 'main.py',
-        'name': 'AI聊天模块'
+    'dialog-engine': {
+        'path': '../services/dialog-engine',
+        'main': 'src/dialog_engine/app.py',
+        'name': 'Dialog Engine'
     },
     'gateway-python': {
-        'path': '../services/gateway-python', 
+        'path': '../services/gateway-python',
         'main': 'main.py',
         'name': '网关模块'
     },
@@ -42,11 +42,6 @@ SERVICE_CONFIG = {
         'path': '../services/output-handler-python',
         'main': 'main.py',
         'name': '输出处理模块'
-    },
-    'tts-python': {
-        'path': '../services/tts-python',
-        'main': 'main.py',
-        'name': '语音合成模块'
     }
 }
 

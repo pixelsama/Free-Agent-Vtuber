@@ -1,81 +1,93 @@
+import asyncio
+import base64
 import os
-import json
 import uuid
 from typing import Any, Dict
 
-from flask import Blueprint, request, jsonify
-from redis.asyncio import Redis
+import httpx
+from flask import Blueprint, jsonify, request
 
-bp_asr = Blueprint("asr", __name__)
+bp_asr = Blueprint("dialog", __name__)
 
-# 读取简单配置（与 gateway 的 config.json 保持一致风格，如无则使用默认）
-REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
-REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))
-REDIS_DB = int(os.environ.get("REDIS_DB", "0"))
-ASR_TASKS_QUEUE = os.environ.get("ASR_TASKS_QUEUE", "asr_tasks")
-
-# 懒加载一个全局异步 Redis 客户端（Flask 本身是同步栈，这里仅用于简单入队）
-_redis_client: Redis | None = None
+DIALOG_ENGINE_URL = os.environ.get("DIALOG_ENGINE_URL", "http://dialog-engine:8100")
+HTTP_TIMEOUT = httpx.Timeout(60.0, connect=5.0, read=60.0, write=10.0)
 
 
-def get_redis() -> Redis:
-    global _redis_client
-    if _redis_client is None:
-        _redis_client = Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
-    return _redis_client
+def _build_url(path: str) -> str:
+    return f"{DIALOG_ENGINE_URL.rstrip('/')}{path}"
+
+
+def _guess_content_type(provided: str | None, filename: str | None) -> str:
+    if provided and isinstance(provided, str) and provided.strip():
+        return provided.strip()
+    if not filename:
+        return "audio/wav"
+    suffix = os.path.splitext(filename)[1].lower()
+    mapping = {
+        ".webm": "audio/webm",
+        ".mp3": "audio/mpeg",
+        ".wav": "audio/wav",
+        ".m4a": "audio/mp4",
+        ".ogg": "audio/ogg",
+    }
+    return mapping.get(suffix, "audio/wav")
+
+
+async def _invoke_dialog_engine(payload: Dict[str, Any]) -> Dict[str, Any]:
+    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+        resp = await client.post(_build_url("/chat/audio"), json=payload)
+        resp.raise_for_status()
+        return resp.json()
 
 
 @bp_asr.route("/asr", methods=["POST"])
-def create_asr_task():
-    """
-    MVP: 仅接受已存在的本地 WAV 文件绝对路径，把任务写入 Redis list 队列，返回 task_id
-    请求 JSON:
-    {
-      "path": "/abs/path/to/file.wav",
-      "options": {"lang":"zh","timestamps":true}
-    }
-    """
+def proxy_audio_chat():
+    """Compatibility endpoint: forward legacy /asr requests to dialog-engine."""
     try:
         data: Dict[str, Any] = request.get_json(force=True, silent=False) or {}
     except Exception:
-        return jsonify({"error": "Invalid JSON"}), 400
+        return jsonify({"error": "invalid_json"}), 400
 
-    path = data.get("path")
-    options = data.get("options") or {}
+    session_id = str(data.get("sessionId") or uuid.uuid4())
+    audio_b64 = data.get("audio")
+    source_path = data.get("path")
 
-    if not path or not isinstance(path, str):
-        return jsonify({"error": "path is required"}), 400
+    if not audio_b64:
+        if not source_path or not isinstance(source_path, str):
+            return jsonify({"error": "audio_or_path_required"}), 400
+        if not os.path.isabs(source_path):
+            return jsonify({"error": "path_must_be_absolute"}), 400
+        try:
+            with open(source_path, "rb") as fh:
+                audio_b64 = base64.b64encode(fh.read()).decode("ascii")
+        except FileNotFoundError:
+            return jsonify({"error": "file_not_found"}), 404
+        except Exception as exc:
+            return jsonify({"error": f"read_failed:{exc}"}), 500
 
-    # 要求绝对路径（MVP）
-    if not os.path.isabs(path):
-        return jsonify({"error": "path must be absolute"}), 400
-
-    # 不强制检查文件是否存在（避免容器间路径不一致导致阻断），但建议存在时更好
-    task_id = str(uuid.uuid4())
-
-    msg = {
-        "task_id": task_id,
-        "audio": {
-            "type": "file",
-            "path": path,
-            "format": "wav",
-            "sample_rate": 16000,
-            "channels": 1
-        },
-        "options": {
-            "lang": options.get("lang", "zh"),
-            "timestamps": bool(options.get("timestamps", True)),
-            "diarization": bool(options.get("diarization", False))
-        },
-        "meta": {
-            "source": "gateway",
-        }
+    content_type = _guess_content_type(data.get("contentType"), source_path)
+    payload: Dict[str, Any] = {
+        "sessionId": session_id,
+        "audio": audio_b64,
+        "contentType": content_type,
     }
 
-    # Flask 同步视图内调用异步 Redis：使用 asyncio.run 会创建/关闭事件循环；
-    # 这里入队一次成本可接受，若高并发可以改为后台任务或使用同步 redis 客户端。
-    import asyncio
-    asyncio.run(get_redis().lpush(ASR_TASKS_QUEUE, json.dumps(msg, ensure_ascii=False)))
+    lang = data.get("lang") or (data.get("options") or {}).get("lang")
+    if lang:
+        payload["lang"] = lang
+    meta = data.get("meta") or {}
+    if meta:
+        payload["meta"] = meta
 
-    # 202 Accepted 也可，这里返回 200 便于前端处理
-    return jsonify({"task_id": task_id}), 200
+    try:
+        result = asyncio.run(_invoke_dialog_engine(payload))
+    except httpx.HTTPStatusError as exc:
+        try:
+            detail = exc.response.json()
+        except ValueError:
+            detail = exc.response.text or exc.response.reason_phrase
+        return jsonify({"error": "dialog_engine_error", "detail": detail}), exc.response.status_code
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        return jsonify({"error": "dialog_engine_unavailable", "detail": str(exc)}), 502
+
+    return jsonify(result)

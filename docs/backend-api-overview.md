@@ -61,7 +61,7 @@
 | 方法 & 路径 | 说明 | 请求体 | 成功响应 | 备注 |
 | --- | --- | --- | --- | --- |
 | `POST /control/stop` | 代为向 Output Handler 转发停止指令 | `{ "sessionId": "<uuid>" }` | 透传下游响应；成功示例：`{"ok": true}` | `400` 缺少 `sessionId`; `502`/`409` 见 Output Handler 行为 |
-| `POST /api/asr` | 将本地 WAV 文件路径入队，触发 ASR | `{ "path": "/abs/path.wav", "options": {"lang":"zh","timestamps":true} }` | `{ "task_id": "<uuid>" }` | 仅 MVP；需绝对路径 |
+| `POST /api/asr` | 兼容旧链路：将音频转发给 dialog-engine `/chat/audio` | `{ "sessionId": "<uuid>", "audio": "<base64>", "contentType": "audio/webm" }` 或 `{"path":"/abs/file.wav"}` | 透传 dialog-engine 返回 `{sessionId, transcript, reply, stats}` | 建议直接调用 dialog-engine HTTP 接口 |
 | `GET /internal/output/health` | 代理 Output Handler 健康检查 | 无 | 透传下游 JSON 或 `{status_code, body}` | 调试用 |
 | `GET /health` | 网关健康状态 | 无 | `{ "status": "ok", "gateway": "running", ... }` | 监控用 |
 | `GET /connections` | 查看当前连接数 | 无 | `{ "total_connections": 0, "connections": [] }` | 仅调试 |
@@ -144,16 +144,11 @@
 
 | 名称 | 类型 | 生产方 | 消费方 | 数据示例 |
 | --- | --- | --- | --- | --- |
-| `user_input_queue` | 列表 | Input Handler | Memory Service | `{ "task_id": "...", "type": "text", "content": "..." }`
-| `task_response:{task_id}` | 频道 | Chat AI / TTS | Output Handler | `{ "text": "...", "audio_file": "/tmp/.../output.mp3" }`
-| `asr_tasks` | 列表 | Gateway/Input Handler | ASR Service | `{ "task_id": "...", "audio": {"path": "/abs/file.wav"} }`
-| `asr_results` | 频道 | ASR Service | Input Handler | `{ "task_id": "...", "status": "finished", "text": "..." }`
-| `memory_updates` | 频道 | Memory Service | Chat AI / LTM | `{ "user_id": "...", "content": "...", "require_ai_response": true }`
-| `ai_responses` | 频道 | Chat AI | Memory Service | `{ "user_id": "...", "text": "..." }`
-| `ltm_requests` | 列表 | Chat AI | Long-Term Memory | `{ "request_id": "...", "type": "search", "data": {"query": "..."} }`
-| `ltm_responses` | 频道 | Long-Term Memory | Chat AI | `{ "request_id": "...", "success": true, "memories": [...] }`
-| `tts_requests` | 列表 | Chat AI | TTS Service | `{ "task_id": "...", "text": "...", "response_channel": "task_response:..." }`
-| `tts_errors` (`config.tts.error_channel`) | 频道 | TTS Service | 监控 | `{ "status": "error", "error": {"code": "..."} }`
+| `task_response:{task_id}` | 频道 | Input Handler / dialog-engine | Output Handler | `{ "status": "success", "text": "...", "stats": {...} }` |
+| `events.ltm` | Redis Stream | dialog-engine Outbox | `async-workers/ltm_worker.py` | `{ "type": "LtmWriteRequested", "payload": {...} }` |
+| `events.analytics` | Redis Stream | dialog-engine Outbox | `async-workers/analytics_worker.py` | `{ "type": "AnalyticsChatStats", "payload": {...} }` |
+| `ltm_requests` | 列表 | Memory Service（兼容旧链路） | Long-Term Memory | `{ "request_id": "...", "type": "search", "data": {"query": "..."} }` |
+| `ltm_responses` | 频道 | Long-Term Memory | Memory Service / dialog-engine | `{ "request_id": "...", "success": true, "memories": [...] }` |
 
 ---
 
@@ -166,8 +161,8 @@
 | `REDIS_HOST` / `REDIS_PORT` | `localhost` / `6379` | 多数服务 | Redis 连接配置 |
 | `SYNC_TTS_STREAMING` | `false` | Output Handler | 是否允许 `/ws/ingest/tts` 推流 |
 | `SYNC_TTS_BARGE_IN` | `false` | Output Handler | 是否允许 `POST /control/stop` 触发撞线 |
-| `ENABLE_SYNC_CORE` | `false` | Input Handler | 文本输入是否直连对话引擎（SSE） |
-| `ENABLE_LTM` | `false` | Chat AI | 是否启用长期记忆检索链路 |
+| `DIALOG_ENGINE_URL` | `http://dialog-engine:8100` | Input Handler / Gateway | dialog-engine 基础地址 |
+| `OUTPUT_INGEST_WS_URL` | `ws://output-handler:8002/ws/ingest/tts` | dialog-engine | 推送 TTS PCM 的内部通道 |
 
 ---
 
