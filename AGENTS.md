@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Modules
-- `services/` — Python microservices: `asr-python/`, `chat-ai-python/`, `gateway-python/`, `input-handler-python/`, `memory-python/`, `long-term-memory-python/`, `output-handler-python/`, `tts-python/` (each has its own `main.py`, `Dockerfile`, and often `tests/`).
+- `services/` — Python microservices: `dialog-engine/`, `gateway-python/`, `input-handler-python/`, `memory-python/`, `long-term-memory-python/`, `output-handler-python/`, `async-workers/` (each has its own `main.py`, `Dockerfile`, and often `tests/`).
 - `manager/` — Flask service manager UI (`app.py`, `start.sh`).
 - `front_end/` — Vue 3 + Vite UI (`src/`, `package.json`).
 - `docs/` — architecture and plans.  `utils/` — shared helpers.  `.env.example` — config template.

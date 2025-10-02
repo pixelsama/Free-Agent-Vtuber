@@ -95,25 +95,6 @@ services:
     depends_on:
       - redis
 
-  # ASR语音识别服务
-  asr:
-    build:
-      context: ./services/asr-python
-      dockerfile: Dockerfile
-    container_name: aivtuber-asr-dev
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - PYTHONPATH=/app
-    volumes:
-      - ./services/asr-python:/app
-      - ./utils:/app/shared_utils
-    command: ["python", "dev_runner.py"]
-    restart: "no"
-    depends_on:
-      - redis
-
   # 输入处理服务
   input-handler:
     build:
@@ -124,7 +105,6 @@ services:
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - PYTHONPATH=/app
-      - ENABLE_SYNC_CORE=${ENABLE_SYNC_CORE:-false}
       - DIALOG_ENGINE_URL=${DIALOG_ENGINE_URL:-http://dialog-engine:8100}
     volumes:
       - ./services/input-handler-python:/app
@@ -199,28 +179,6 @@ services:
       - redis
       - postgres
 
-  # AI聊天服务
-  chat-ai:
-    build:
-      context: ./services/chat-ai-python
-      dockerfile: Dockerfile
-    container_name: aivtuber-chat-ai-dev
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - PYTHONPATH=/app
-      - ENABLE_LTM=${ENABLE_LTM:-true}
-      - LTM_REQUESTS_QUEUE=${LTM_REQUESTS_QUEUE:-ltm_requests}
-      - LTM_RESPONSES_CHANNEL=${LTM_RESPONSES_CHANNEL:-ltm_responses}
-    volumes:
-      - ./services/chat-ai-python:/app
-      - ./utils:/app/shared_utils
-    command: ["python", "dev_runner.py"]
-    restart: "no"
-    depends_on:
-      - redis
-
   # 输出处理服务
   output-handler:
     build:
@@ -274,25 +232,6 @@ services:
     command: ["python", "analytics_worker.py"]
     volumes:
       - ./services/async-workers:/app/services/async-workers
-    restart: "no"
-    depends_on:
-      - redis
-
-  # TTS语音合成服务
-  tts:
-    build:
-      context: ./services/tts-python
-      dockerfile: Dockerfile
-    container_name: aivtuber-tts-dev
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - PYTHONPATH=/app
-    volumes:
-      - ./services/tts-python:/app
-      - ./utils:/app/shared_utils
-      - temp_files:/tmp/aivtuber_tasks
-    command: ["python", "dev_runner.py"]
     restart: "no"
     depends_on:
       - redis

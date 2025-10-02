@@ -114,14 +114,13 @@ pytest -q
 
 本项目采用 Redis 作为消息总线，服务通过队列（list）与频道（pub/sub）通信。输入归一化由 `input-handler` 负责，采用 “content 优先” 的策略。
 
-端到端数据流（语音 → 文本 → 对话 → TTS）：
+端到端数据流（语音 / 文本 → 对话 → TTS）：
 
-1. 外部调用网关：POST `/api/asr` → 入队 `asr_tasks`（list）
-2. ASR 服务识别：消费 `asr_tasks` → 发布识别结果到 `asr_results`（pub/sub）
-3. 输入归一化：`input-handler` 订阅 `asr_results`，将 `status=finished` 的文本转为标准用户输入任务，`LPUSH` 到 `user_input_queue`（list）
-4. 记忆：`memory` 消费 `user_input_queue`，优先使用 `task_data.content`，成功后发布 `memory_updates`（pub/sub）
-5. 对话：`chat-ai` 订阅 `memory_updates`，生成回复，发布 `ai_responses`，并 `LPUSH tts_requests`（list）
-6. 语音合成与输出：`tts` 消费 `tts_requests`，合成后发布到 `task_response:{task_id}`（pub/sub），`output`/`gateway` 呈现
+1. 网关统一入口：前端通过 WebSocket 连接 `gateway`，分别路由到 `input-handler`（输入）和 `output-handler`（输出）。
+2. 输入处理：`input-handler` 将文本或音频上传整理后，直接调用 `dialog-engine` 的 `/chat/stream`（文本）或 `/chat/audio`（语音）接口。
+3. 同进程编排：`dialog-engine` 内部完成 ASR、上下文记忆检索、LLM 对话生成以及 TTS 流式推送（通过内部 WebSocket 接口写入 `output-handler`）。
+4. 结果分发：`input-handler` 根据 `dialog-engine` 返回的最终文本和统计数据，向 Redis 发布 `task_response:{task_id}` 消息。
+5. 前端呈现：`output-handler` 订阅 `task_response:{task_id}`，将 AI 回复（及可选的音频分片）推送给前端客户端。
 
 ## 开发路线图
 

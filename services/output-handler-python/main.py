@@ -171,21 +171,42 @@ class OutputHandler:
     
     async def _send_response(self, websocket: WebSocket, task_id: str, response_data: dict):
         try:
-            # 发送文本响应
+            status = str(response_data.get("status") or "success").lower()
+            if status != "success":
+                error_payload = {
+                    "status": "error",
+                    "task_id": task_id,
+                    "error": response_data.get("error", "dialog_engine_failed"),
+                    "source": response_data.get("source", "dialog-engine"),
+                }
+                if "meta" in response_data:
+                    error_payload["meta"] = response_data["meta"]
+                await websocket.send_text(json.dumps(error_payload))
+                logger.info(f"Sent error response for task {task_id}")
+                return
+
+            content = response_data.get("text")
+            if not isinstance(content, str):
+                content = response_data.get("reply", "")
             text_response = {
                 "status": "success",
                 "task_id": task_id,
-                "content": response_data.get("text", ""),
-                "audio_present": "audio_file" in response_data and response_data["audio_file"]
+                "content": content or "",
+                "audio_present": bool(response_data.get("audio_file") or response_data.get("audio")),
+                "transcript": response_data.get("transcript"),
+                "stats": response_data.get("stats"),
+                "source": response_data.get("source", "dialog-engine"),
+                "input_mode": response_data.get("input_mode"),
+                "partials": response_data.get("partials"),
             }
-            
+
             await websocket.send_text(json.dumps(text_response))
-            logger.info(f"Sent text response for task {task_id}")
-            
-            # 如果有音频文件，分块发送
-            if "audio_file" in response_data and response_data["audio_file"]:
-                await self._send_audio_chunks(websocket, task_id, response_data["audio_file"])
-                
+            logger.info(f"Sent dialog-engine response for task {task_id}")
+
+            audio_file = response_data.get("audio_file")
+            if audio_file:
+                await self._send_audio_chunks(websocket, task_id, audio_file)
+
         except Exception as e:
             logger.error(f"Error sending response: {e}")
             await websocket.send_text(json.dumps({

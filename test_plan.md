@@ -1,12 +1,12 @@
 ## 项目分析总结
 
-从分析中可以看出，您的AIVtuber项目包含以下微服务：
-1. **chat-ai-python**: AI聊天处理服务，负责文本处理和AI交互
-2. **gateway-python**: API网关，负责WebSocket连接路由
-3. **input-handler-python**: 输入处理服务，接收用户输入并分发任务
-4. **memory-python**: 记忆管理服务，负责存储和管理对话历史
-5. **output-handler-python**: 输出处理服务，向用户发送处理结果
-6. **tts-python**: 文本转语音服务，负责语音合成
+从分析中可以看出，您的 AIVtuber 项目当前包含以下核心微服务：
+1. **dialog-engine**：统一编排 ASR、LLM 对话、记忆和同步 TTS，提供 `/chat/*` 接口
+2. **gateway-python**：API 网关，负责 WebSocket 连接路由
+3. **input-handler-python**：输入处理服务，接收用户输入并直接调用 dialog-engine
+4. **output-handler-python**：输出处理服务，订阅 `task_response:{task_id}` 并向前端推送结果
+5. **memory-python**：记忆管理服务，负责存储和管理对话历史
+6. **long-term-memory-python** 与 **async-workers**：提供长期记忆及分析扩展能力
 
 所有服务都使用Redis进行通信，采用异步处理模式。
 
@@ -21,12 +21,12 @@
 
 ### 2. 各模块测试策略
 
-#### chat-ai-python 测试重点：
-- AIProcessor类的文本处理功能
-- 规则引擎的响应逻辑
-- Redis上下文管理
-- AI API调用的模拟测试
-- 错误处理和回退机制
+#### dialog-engine 测试重点：
+- `/chat/stream` SSE 文本流的增量响应与完成事件
+- `/chat/audio` 语音输入处理（包含 ASR provider mock/whisper）
+- 短期记忆与长期记忆检索的集成
+- TTS 推流（Mock/Edge）停止与异常回退
+- 统计数据与 outbox 事件的正确性
 
 #### gateway-python 测试重点：
 - WebSocket连接代理功能
@@ -35,9 +35,10 @@
 - 连接管理和清理
 
 #### input-handler-python 测试重点：
-- WebSocket输入处理
+- WebSocket 输入处理与任务组装
 - 数据分块和重组
-- Redis队列消息发送
+- 与 dialog-engine 的文本/音频接口交互
+- Redis `task_response:{task_id}` 发布逻辑
 - 临时文件管理
 
 #### memory-python 测试重点：
@@ -47,16 +48,10 @@
 - 定期清理功能
 
 #### output-handler-python 测试重点：
-- WebSocket输出连接
-- Redis响应监听
-- 音频文件分块传输
-- 超时处理机制
-
-#### tts-python 测试重点：
-- TTS服务启动和停止
-- Redis请求监听
-- 语音合成和回退机制
-- 错误处理和日志记录
+- WebSocket 输出连接与状态跟踪
+- Redis 响应监听与错误处理
+- 音频分片推送（dialog-engine 推流）
+- 超时与断线重试机制
 
 ### 3. 测试类型分类
 - **单元测试**: 针对各个类和函数的独立功能测试

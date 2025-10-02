@@ -1,17 +1,18 @@
 import asyncio
+import base64
 import json
 import logging
+import os
 import uuid
-import httpx
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
+import httpx
 import redis.asyncio as redis
+import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
-import uvicorn
-import os
 
 # 配置日志
 logging.basicConfig(
@@ -24,9 +25,10 @@ logger = logging.getLogger(__name__)
 redis_client: Optional[redis.Redis] = None
 active_connections: Dict[str, WebSocket] = {}
 
-# 同步主链路开关与目标地址（M1：仅文本流式）
-ENABLE_SYNC_CORE = os.getenv("ENABLE_SYNC_CORE", "false").lower() in {"1", "true", "yes", "on"}
 DIALOG_ENGINE_URL = os.getenv("DIALOG_ENGINE_URL", "http://localhost:8100")
+TEXT_STREAM_ENDPOINT = "/chat/stream"
+AUDIO_ENDPOINT = "/chat/audio"
+HTTP_TIMEOUT = httpx.Timeout(60.0, connect=5.0, read=60.0, write=10.0)
 
 # 临时文件存储目录
 TEMP_DIR = Path("/tmp/aivtuber_tasks")
@@ -180,11 +182,12 @@ class InputHandler:
                 "task_id": task_id
             }))
             
-            # 根据 Flag 选择同步链路（SSE）或旧链路（Redis 队列）
-            if data_type == "text" and ENABLE_SYNC_CORE:
-                asyncio.create_task(self._send_to_dialog_engine(task_id, content or ""))
+            if data_type == "text":
+                asyncio.create_task(self._handle_text_task(task_id, content or ""))
+            elif data_type == "audio":
+                asyncio.create_task(self._handle_audio_task(task_id, input_file))
             else:
-                await self._send_to_redis_queue(task_id, data_type, input_file, content)
+                logger.warning(f"Unsupported data type '{data_type}' for task {task_id}")
                 
         except Exception as e:
             logger.error(f"Error processing upload for task {task_id}: {e}")
@@ -195,112 +198,156 @@ class InputHandler:
                 "error": str(e)
             }))
     
-    async def _send_to_redis_queue(self, task_id: str, data_type: str, input_file: Path, content: str = None):
-        if redis_client:
-            try:
-                logger.info(f"DEBUG: Processing task {task_id}, data_type='{data_type}', content={content is not None}")
-                if data_type == "audio":
-                    logger.info(f"DEBUG: Routing audio task {task_id} to ASR service")
-                    # 音频任务：发送到ASR服务进行语音识别
-                    # 根据文件扩展名确定格式
-                    file_ext = input_file.suffix.lower()
-                    if file_ext == ".webm":
-                        audio_format = "webm"
-                    elif file_ext == ".mp3":
-                        audio_format = "mp3"
-                    elif file_ext == ".wav":
-                        audio_format = "wav"
-                    else:
-                        audio_format = "wav"  # 默认
-                    
-                    asr_message = {
-                        "task_id": task_id,
-                        "audio": {
-                            "type": "file",
-                            "path": str(input_file),
-                            "format": audio_format,
-                            "sample_rate": 16000,
-                            "channels": 1
-                        },
-                        "options": {
-                            "lang": "zh",
-                            "timestamps": True,
-                            "diarization": False
-                        },
-                        "meta": {
-                            "source": "user",
-                            "trace_id": None
-                        }
-                    }
-                    await redis_client.lpush("asr_tasks", json.dumps(asr_message, ensure_ascii=False))
-                    logger.info(f"Sent audio task {task_id} to ASR queue for recognition")
-                    
-                else:
-                    logger.info(f"DEBUG: Routing text task {task_id} to user input queue")
-                    # 文本任务：构造标准化任务消息（B模式：content优先）
-                    message = {
-                        "task_id": task_id,
-                        "type": data_type,
-                        "user_id": "anonymous",
-                        "input_file": str(input_file),
-                        "source": "user",
-                        "timestamp": asyncio.get_event_loop().time(),
-                        "meta": {
-                            "trace_id": None,
-                            "from_channel": "input_handler",
-                            "provider": "direct_upload"
-                        }
-                    }
-                    
-                    # B模式：优先传递content，input_file作为后备
-                    if content is not None:
-                        message["content"] = content
-                    
-                    # 文本直接发送到用户输入队列
-                    await redis_client.lpush("user_input_queue", json.dumps(message, ensure_ascii=False))
-                    logger.info(f"Sent text task {task_id} to user input queue: content_length: {len(content) if content else 0}")
-                
-            except Exception as e:
-                logger.error(f"Failed to send task to Redis: {e}")
+    async def _handle_text_task(self, task_id: str, content: str) -> None:
+        try:
+            reply, stats = await self._stream_dialog_engine(task_id, content)
+            payload = {
+                "status": "success",
+                "sessionId": task_id,
+                "text": reply,
+                "transcript": content,
+                "stats": stats,
+                "source": "dialog-engine",
+                "input_mode": "text",
+            }
+            await self._publish_response(task_id, payload)
+        except Exception as exc:
+            logger.error(f"Dialog-engine text handling failed for task {task_id}: {exc}")
+            await self._publish_error(task_id, str(exc) or "dialog_engine_failed")
 
-    async def _send_to_dialog_engine(self, task_id: str, content: str):
-        """调用 dialog-engine 的 /chat/stream（SSE）。失败则回退旧链路。
+    async def _handle_audio_task(self, task_id: str, audio_file: Path) -> None:
+        try:
+            result = await self._invoke_dialog_engine_audio(task_id, audio_file)
+            payload = {
+                "status": "success",
+                "sessionId": task_id,
+                "text": result.get("reply", ""),
+                "transcript": result.get("transcript", ""),
+                "stats": result.get("stats"),
+                "source": "dialog-engine",
+                "input_mode": "audio",
+            }
+            partials = result.get("partials")
+            if partials:
+                payload["partials"] = partials
+            await self._publish_response(task_id, payload)
+        except Exception as exc:
+            logger.error(f"Dialog-engine audio handling failed for task {task_id}: {exc}")
+            await self._publish_error(task_id, str(exc) or "dialog_engine_failed")
 
-        说明（M1）：当前仅触发 SSE 流用于验证同步链路；流事件仅记录日志，不转发到前端。
-        """
-        url = f"{DIALOG_ENGINE_URL.rstrip('/')}/chat/stream"
+    async def _publish_response(self, task_id: str, payload: Dict[str, Any]) -> None:
+        if not redis_client:
+            logger.error("Redis client not available; cannot publish response")
+            return
+        channel = f"task_response:{task_id}"
+        try:
+            await redis_client.publish(channel, json.dumps(payload, ensure_ascii=False))
+            logger.info(f"Published dialog-engine result to {channel}")
+        except Exception as exc:
+            logger.error(f"Failed to publish response for task {task_id}: {exc}")
+
+    async def _publish_error(self, task_id: str, message: str) -> None:
+        payload = {
+            "status": "error",
+            "task_id": task_id,
+            "error": message,
+            "source": "dialog-engine",
+        }
+        await self._publish_response(task_id, payload)
+
+    async def _stream_dialog_engine(self, task_id: str, content: str) -> Tuple[str, Dict[str, Any]]:
+        url = f"{DIALOG_ENGINE_URL.rstrip('/')}{TEXT_STREAM_ENDPOINT}"
         payload = {
             "sessionId": task_id,
             "turn": 0,
             "type": "TEXT",
             "content": content,
-            "meta": {"lang": "zh"}
+            "meta": {"lang": "zh"},
         }
+        deltas: list[str] = []
+        stats: Dict[str, Any] = {}
+        current_event = "message"
         try:
-            timeout = httpx.Timeout(30.0, connect=2.0, read=30.0, write=10.0)
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                async with client.stream("POST", url, json=payload, headers={"Accept": "text/event-stream"}) as resp:
+            async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+                async with client.stream(
+                    "POST",
+                    url,
+                    json=payload,
+                    headers={"Accept": "text/event-stream"},
+                ) as resp:
                     resp.raise_for_status()
                     async for line in resp.aiter_lines():
-                        if not line:
+                        if line == "":
+                            current_event = "message"
                             continue
-                        if line.startswith("event:"):
-                            logger.info(f"[SSE] event: {line}")
-                        elif line.startswith("data:"):
-                            logger.info(f"[SSE] data : {line[:200]}")
+                        if line.startswith(":"):
+                            continue
+                        if line.lower().startswith("event:"):
+                            current_event = line.split(":", 1)[1].strip() or "message"
+                            continue
+                        if line.lower().startswith("data:"):
+                            data_raw = line.split(":", 1)[1].strip()
+                            if not data_raw:
+                                continue
+                            try:
+                                data_obj = json.loads(data_raw)
+                            except json.JSONDecodeError:
+                                logger.debug(f"Non-JSON SSE data ignored: {data_raw[:50]}")
+                                continue
+                            if current_event == "text-delta":
+                                delta = data_obj.get("content")
+                                if isinstance(delta, str):
+                                    deltas.append(delta)
+                            elif current_event == "done":
+                                stats = data_obj.get("stats") or {}
+                            elif current_event == "error":
+                                raise RuntimeError(data_obj.get("message", "dialog_engine_error"))
             logger.info(f"Dialog-engine SSE completed for task {task_id}")
-        except Exception as e:
-            logger.warning(f"SSE path failed, fallback to Redis queue. Reason: {e}")
-            # 回退：将文本按旧链路入队
-            task_dir = TEMP_DIR / task_id
-            input_file = task_dir / "input.txt"
+        except httpx.HTTPStatusError as exc:
+            detail = exc.response.text
+            raise RuntimeError(f"dialog_engine_http_error:{exc.response.status_code}:{detail}") from exc
+        except Exception:
+            raise
+        reply_text = "".join(deltas)
+        return reply_text, stats
+
+    async def _invoke_dialog_engine_audio(self, task_id: str, audio_file: Path) -> Dict[str, Any]:
+        url = f"{DIALOG_ENGINE_URL.rstrip('/')}{AUDIO_ENDPOINT}"
+        try:
+            audio_bytes = audio_file.read_bytes()
+        except Exception as exc:
+            raise RuntimeError(f"read_audio_failed:{exc}") from exc
+        if not audio_bytes:
+            raise RuntimeError("audio_payload_empty")
+        audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
+        content_type = self._infer_content_type(audio_file.suffix.lower())
+        body = {
+            "sessionId": task_id,
+            "audio": audio_b64,
+            "contentType": content_type,
+            "meta": {"source": "input-handler"},
+        }
+        try:
+            async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+                resp = await client.post(url, json=body)
+                resp.raise_for_status()
+                return resp.json()
+        except httpx.HTTPStatusError as exc:
             try:
-                input_file.parent.mkdir(parents=True, exist_ok=True)
-                with open(input_file, "w", encoding="utf-8") as f:
-                    f.write(content)
-            except Exception:
-                pass
-            await self._send_to_redis_queue(task_id, "text", input_file, content)
+                detail = exc.response.json()
+            except ValueError:
+                detail = exc.response.text
+            raise RuntimeError(f"dialog_engine_audio_failed:{detail}") from exc
+
+    @staticmethod
+    def _infer_content_type(suffix: str) -> str:
+        mapping = {
+            ".webm": "audio/webm",
+            ".mp3": "audio/mpeg",
+            ".wav": "audio/wav",
+            ".m4a": "audio/mp4",
+        }
+        return mapping.get(suffix, "audio/wav")
     
     def _cleanup_task_data(self, task_id: str):
         """清理任务相关的临时数据"""
@@ -330,80 +377,12 @@ async def get():
         <ul>
             <li>输入端点: /ws/input</li>
             <li>支持格式: 文本、音频(WebM/Opus)</li>
-            <li>Redis队列: user_input_queue</li>
-            <li>订阅: asr_results → 转发为 user_input_queue（content 模式）</li>
+            <li>同步链路: 调用 dialog-engine /chat/stream 与 /chat/audio</li>
+            <li>结果分发: 发布 Redis 频道 task_response:&#123;task_id&#125;</li>
         </ul>
     </body>
     </html>
     """)
-
-async def asr_results_bridge():
-    """
-    订阅 ASR 结果频道 asr_results，将 finished 文本转为 user_input_queue 标准任务（content 优先）。
-    """
-    if not redis_client:
-        logger.error("Redis client not available for ASR bridge")
-        return
-
-    pubsub = redis_client.pubsub()
-    await pubsub.subscribe("asr_results")
-    logger.info("ASR bridge subscribed to channel: asr_results")
-
-    try:
-        async for message in pubsub.listen():
-            if message["type"] != "message":
-                continue
-            try:
-                data = json.loads(message["data"])
-            except json.JSONDecodeError:
-                logger.error("Invalid JSON in asr_results")
-                continue
-
-            status = data.get("status")
-            text = data.get("text")
-            if status != "finished" or not isinstance(text, str) or not text.strip():
-                # 跳过非完成或空文本
-                continue
-
-            task_id = data.get("task_id") or str(uuid.uuid4())
-            lang = data.get("lang")
-            meta = data.get("meta") or {}
-            user_id = meta.get("user_id", "anonymous")
-
-            unified = {
-                "task_id": task_id,
-                "type": "text",
-                "user_id": user_id,
-                "content": text.strip(),
-                "source": "asr",
-                "timestamp": asyncio.get_event_loop().time(),
-                "meta": {
-                    "lang": lang,
-                    "trace_id": meta.get("trace_id"),
-                    "from_channel": "asr_results",
-                    "provider": data.get("provider"),
-                },
-            }
-
-            try:
-                await redis_client.lpush("user_input_queue", json.dumps(unified, ensure_ascii=False))
-                logger.info(f"Bridged ASR result to user_input_queue, task_id={task_id}, len(text)={len(unified['content'])}")
-            except Exception as e:
-                logger.error(f"Failed to push unified task to user_input_queue: {e}")
-
-    except Exception as e:
-        logger.error(f"ASR bridge error: {e}")
-    finally:
-        try:
-            await pubsub.unsubscribe("asr_results")
-            await pubsub.close()
-        except Exception:
-            pass
-
-@app.on_event("startup")
-async def startup_tasks():
-    # 启动 ASR → Input 的桥接协程
-    asyncio.create_task(asr_results_bridge())
 
 if __name__ == "__main__":
     uvicorn.run(
