@@ -61,7 +61,7 @@
 | 方法 & 路径 | 说明 | 请求体 | 成功响应 | 备注 |
 | --- | --- | --- | --- | --- |
 | `POST /control/stop` | 代为向 Output Handler 转发停止指令 | `{ "sessionId": "<uuid>" }` | 透传下游响应；成功示例：`{"ok": true}` | `400` 缺少 `sessionId`; `502`/`409` 见 Output Handler 行为 |
-| `POST /api/asr` | 兼容旧链路：将音频转发给 dialog-engine `/chat/audio` | `{ "sessionId": "<uuid>", "audio": "<base64>", "contentType": "audio/webm" }` 或 `{"path":"/abs/file.wav"}` | 透传 dialog-engine 返回 `{sessionId, transcript, reply, stats}` | 建议直接调用 dialog-engine HTTP 接口 |
+| `POST /api/asr` | HTTP 辅助入口：将音频转发给 dialog-engine `/chat/audio`（供不便使用 WebSocket 的客户端或排查时使用） | `{ "sessionId": "<uuid>", "audio": "<base64>", "contentType": "audio/webm" }` 或 `{"path":"/abs/file.wav"}` | 透传 dialog-engine 返回 `{sessionId, transcript, reply, stats}` | 旧链路已移除，常规场景请使用 `/ws/input` |
 | `GET /internal/output/health` | 代理 Output Handler 健康检查 | 无 | 透传下游 JSON 或 `{status_code, body}` | 调试用 |
 | `GET /health` | 网关健康状态 | 无 | `{ "status": "ok", "gateway": "running", ... }` | 监控用 |
 | `GET /connections` | 查看当前连接数 | 无 | `{ "total_connections": 0, "connections": [] }` | 仅调试 |
@@ -173,7 +173,8 @@
 3. **音频处理**：
    - 文件式结果（`audio_file` 字段存在）会返回 MP3 块，保持 `chunk_id` 顺序并在 `audio_complete` 后合并。
    - 流式 TTS 会返回原始 PCM 字节，`total_chunks=null` 且以 `control:END` 结束；需要在前端自行构建播放缓冲或转码。
-4. **错误兜底**：若输出连接收到 `status=error`，前端可提示“系统繁忙”并允许用户重试。
-5. **调试排查**：可通过 Manager UI 查看服务状态、拉取实时日志，或直接访问各服务的 `/health` 端点确认连通性。
+4. **旧链路迁移**：基于队列 `user_input_queue` / `ai_responses` 的旧链路已停用；文本、流式文本与音频推送全部走上述 WebSocket 协议，现有字段顺序保持不变。
+5. **错误兜底**：若输出连接收到 `status=error`，前端可提示“系统繁忙”并允许用户重试。
+6. **调试排查**：可通过 Manager UI 查看服务状态、拉取实时日志，或直接访问各服务的 `/health` 端点确认连通性。
 
-> 文档最后更新：2025-03-19（请在修改接口后同步更新此文档）。
+> 文档最后更新：2025-03-20（请在修改接口后同步更新此文档）。

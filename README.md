@@ -122,6 +122,8 @@ pytest -q
 4. 结果分发：`input-handler` 根据 `dialog-engine` 返回的最终文本和统计数据，向 Redis 发布 `task_response:{task_id}` 消息。
 5. 前端呈现：`output-handler` 订阅 `task_response:{task_id}`，将 AI 回复（及可选的音频分片）推送给前端客户端。
 
+> **兼容性提示**：原先依赖 `user_input_queue` / `ai_responses` 的旧链路已经在同步架构重构中移除。前端与外部调用方无需做额外调整，仍然通过 Gateway 的 `/ws/input` 上传文本或音频，并在 `/ws/output/{task_id}` 获取流式文本与音频分片；接口字段与顺序保持不变。
+
 ## 开发路线图
 
 我们将分阶段构建 `Free-Agent-Vtuber`：
