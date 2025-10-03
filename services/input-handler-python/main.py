@@ -28,6 +28,7 @@ active_connections: Dict[str, WebSocket] = {}
 DIALOG_ENGINE_URL = os.getenv("DIALOG_ENGINE_URL", "http://localhost:8100")
 TEXT_STREAM_ENDPOINT = "/chat/stream"
 AUDIO_ENDPOINT = "/chat/audio"
+VISION_ENDPOINT = "/chat/vision"
 HTTP_TIMEOUT = httpx.Timeout(60.0, connect=5.0, read=60.0, write=10.0)
 
 # 临时文件存储目录
@@ -115,10 +116,7 @@ class InputHandler:
                     
                     if data.get("action") == "data_chunk":
                         # 元数据消息，记录类型信息
-                        self.metadata[task_id] = {
-                            "type": data["type"],
-                            "chunk_id": data["chunk_id"]
-                        }
+                        self.metadata[task_id] = dict(data)
                         if data["chunk_id"] != expected_chunk_id:
                             await websocket.send_text(
                                 f"Chunk ID mismatch: expected {expected_chunk_id}, got {data['chunk_id']}"
@@ -173,6 +171,23 @@ class InputHandler:
                 with open(input_file, "wb") as f:
                     f.write(combined_data)
                 logger.info(f"Saved audio input for task {task_id}, size: {len(combined_data)} bytes")
+
+            elif data_type == "image":
+                meta = self.metadata.get(task_id, {})
+                if isinstance(meta, dict):
+                    mime_type = meta.get("mime_type") or meta.get("content_type")
+                else:
+                    mime_type = None
+                file_suffix = self._infer_image_suffix(mime_type)
+                input_file = task_dir / f"input{file_suffix}"
+                with open(input_file, "wb") as f:
+                    f.write(combined_data)
+                logger.info(
+                    "Saved image input for task %s, size: %d bytes, mime: %s",
+                    task_id,
+                    len(combined_data),
+                    mime_type or "unknown",
+                )
             
             # 发送处理确认
             await websocket.send_text(json.dumps({
@@ -186,6 +201,22 @@ class InputHandler:
                 asyncio.create_task(self._handle_text_task(task_id, content or ""))
             elif data_type == "audio":
                 asyncio.create_task(self._handle_audio_task(task_id, input_file))
+            elif data_type == "image":
+                meta = self.metadata.get(task_id, {})
+                prompt = meta.get("prompt") if isinstance(meta, dict) else None
+                extra_meta = meta.get("meta") if isinstance(meta, dict) else None
+                mime_type = (
+                    meta.get("mime_type") or meta.get("content_type")
+                ) if isinstance(meta, dict) else None
+                asyncio.create_task(
+                    self._handle_image_task(
+                        task_id,
+                        input_file,
+                        prompt,
+                        mime_type,
+                        extra_meta if isinstance(extra_meta, dict) else None,
+                    )
+                )
             else:
                 logger.warning(f"Unsupported data type '{data_type}' for task {task_id}")
                 
@@ -233,6 +264,38 @@ class InputHandler:
             await self._publish_response(task_id, payload)
         except Exception as exc:
             logger.error(f"Dialog-engine audio handling failed for task {task_id}: {exc}")
+            await self._publish_error(task_id, str(exc) or "dialog_engine_failed")
+
+    async def _handle_image_task(
+        self,
+        task_id: str,
+        image_file: Path,
+        prompt: Optional[str],
+        mime_type: Optional[str],
+        meta: Optional[Dict[str, Any]],
+    ) -> None:
+        try:
+            result = await self._invoke_dialog_engine_image(
+                task_id,
+                image_file,
+                prompt=prompt,
+                mime_type=mime_type,
+                meta=meta,
+            )
+            payload: Dict[str, Any] = {
+                "status": "success",
+                "sessionId": task_id,
+                "text": result.get("reply", ""),
+                "transcript": result.get("prompt", ""),
+                "stats": result.get("stats"),
+                "source": "dialog-engine",
+                "input_mode": "image",
+            }
+            if meta:
+                payload["meta"] = meta
+            await self._publish_response(task_id, payload)
+        except Exception as exc:
+            logger.error(f"Dialog-engine image handling failed for task {task_id}: {exc}")
             await self._publish_error(task_id, str(exc) or "dialog_engine_failed")
 
     async def _publish_response(self, task_id: str, payload: Dict[str, Any]) -> None:
@@ -339,6 +402,45 @@ class InputHandler:
                 detail = exc.response.text
             raise RuntimeError(f"dialog_engine_audio_failed:{detail}") from exc
 
+    async def _invoke_dialog_engine_image(
+        self,
+        task_id: str,
+        image_file: Path,
+        *,
+        prompt: Optional[str],
+        mime_type: Optional[str],
+        meta: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        url = f"{DIALOG_ENGINE_URL.rstrip('/')}{VISION_ENDPOINT}"
+        try:
+            image_bytes = image_file.read_bytes()
+        except Exception as exc:
+            raise RuntimeError(f"read_image_failed:{exc}") from exc
+        if not image_bytes:
+            raise RuntimeError("image_payload_empty")
+        image_b64 = base64.b64encode(image_bytes).decode("ascii")
+        body: Dict[str, Any] = {
+            "sessionId": task_id,
+            "image": image_b64,
+        }
+        if prompt:
+            body["prompt"] = prompt
+        if mime_type:
+            body["mimeType"] = mime_type
+        if meta:
+            body["meta"] = meta
+        try:
+            async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+                resp = await client.post(url, json=body)
+                resp.raise_for_status()
+                return resp.json()
+        except httpx.HTTPStatusError as exc:
+            try:
+                detail = exc.response.json()
+            except ValueError:
+                detail = exc.response.text
+            raise RuntimeError(f"dialog_engine_image_failed:{detail}") from exc
+
     @staticmethod
     def _infer_content_type(suffix: str) -> str:
         mapping = {
@@ -348,6 +450,19 @@ class InputHandler:
             ".m4a": "audio/mp4",
         }
         return mapping.get(suffix, "audio/wav")
+
+    @staticmethod
+    def _infer_image_suffix(mime_type: Optional[str]) -> str:
+        mapping = {
+            "image/png": ".png",
+            "image/jpeg": ".jpg",
+            "image/jpg": ".jpg",
+            "image/webp": ".webp",
+            "image/gif": ".gif",
+        }
+        if not mime_type:
+            return ".png"
+        return mapping.get(mime_type.lower(), ".png")
     
     def _cleanup_task_data(self, task_id: str):
         """清理任务相关的临时数据"""
@@ -376,8 +491,8 @@ async def get():
         <p>专用于处理用户输入的WebSocket服务</p>
         <ul>
             <li>输入端点: /ws/input</li>
-            <li>支持格式: 文本、音频(WebM/Opus)</li>
-            <li>同步链路: 调用 dialog-engine /chat/stream 与 /chat/audio</li>
+            <li>支持格式: 文本、音频(WebM/Opus)、图片(JPEG/PNG/WebP)</li>
+            <li>同步链路: 调用 dialog-engine /chat/stream、/chat/audio 与 /chat/vision</li>
             <li>结果分发: 发布 Redis 频道 task_response:&#123;task_id&#125;</li>
         </ul>
     </body>

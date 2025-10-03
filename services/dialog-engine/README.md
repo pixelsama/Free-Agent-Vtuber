@@ -7,6 +7,7 @@ FastAPI service that powers synchronous chat + audio flows. It now accepts raw a
 - `POST /chat/stream` – existing text SSE endpoint.
 - `POST /chat/audio` – accepts base64 audio payloads, runs ASR, returns JSON transcript/reply.
 - `POST /chat/audio/stream` – SSE stream that emits `asr-partial`, `asr-final`, `text-delta`, and `done` events.
+- `POST /chat/vision` – accepts base64-encoded images plus optional prompts for multimodal reasoning.
 - `POST /tts/mock` – helper for synchronous TTS testing (requires `SYNC_TTS_STREAMING=true`).
 
 ### Example (Sync Audio)
@@ -45,6 +46,7 @@ Use any SSE client (curl `-N`, Postman, or VS Code REST client) to hit `/chat/au
 | `ASR_WHISPER_CACHE_DIR` | Optional model cache path | unset |
 | `SYNC_TTS_STREAMING` | Enable `/tts/mock` audio push | `false` |
 | `ENABLE_ASYNC_EXT` | Enables outbox + analytics events | `false` |
+| `VISION_MAX_BYTES` | Max accepted image payload size in bytes | `4194304` |
 | `OUTPUT_INGEST_WS_URL` | Output handler WS endpoint | `ws://localhost:8002/ws/ingest/tts` |
 
 ## Dependencies
