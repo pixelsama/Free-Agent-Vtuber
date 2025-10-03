@@ -85,6 +85,74 @@ class ChatService:
         ):
             yield delta
 
+    async def describe_image(
+        self,
+        session_id: str,
+        *,
+        image_b64: str,
+        prompt: str | None,
+        mime_type: str | None,
+        meta: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any]:
+        meta = meta or {}
+        raw_prompt = (prompt or "").strip()
+        prompt_text = raw_prompt or "请描述这张图片。"
+        lang = str(meta.get("lang") or "zh")
+
+        self._reset_metrics()
+        context_turns: List[MemoryTurn] = []
+        ltm_snippets: List[str] = []
+
+        if self._settings.llm.enabled:
+            context_turns = await self._fetch_short_term_context(session_id=session_id)
+            ltm_snippets = await self._fetch_ltm_snippets(
+                session_id=session_id,
+                user_text=prompt_text,
+                meta=meta,
+            )
+            self._log_context_info(len(context_turns), len(ltm_snippets))
+            try:
+                reply_text = await self._generate_vision_reply(
+                    session_id=session_id,
+                    prompt_text=prompt_text,
+                    image_b64=image_b64,
+                    mime_type=mime_type or "image/png",
+                    meta=meta,
+                    context=context_turns,
+                    ltm_snippets=ltm_snippets,
+                )
+                self.last_source = "llm"
+                self.last_error = None
+                self.last_ttft_ms = None
+                self.last_token_count = self._estimate_tokens(reply_text)
+                stats = {
+                    "chat": {
+                        "source": self.last_source,
+                        "tokens": self.last_token_count,
+                        "ttft_ms": self.last_ttft_ms,
+                    }
+                }
+                return {"reply": reply_text, "prompt": prompt_text, "stats": stats}
+            except LLMNotConfiguredError as exc:
+                self.last_error = "llm_not_configured"
+                self._log_llm_fallback(reason=str(exc))
+            except Exception as exc:  # pragma: no cover - defensive catch
+                self.last_error = exc.__class__.__name__
+                self._log_llm_fallback(reason=repr(exc))
+
+        reply_text = self._craft_image_reply(raw_prompt, lang)
+        self.last_source = "mock"
+        self.last_ttft_ms = None
+        self.last_token_count = self._estimate_tokens(reply_text)
+        stats = {
+            "chat": {
+                "source": self.last_source,
+                "tokens": self.last_token_count,
+                "ttft_ms": self.last_ttft_ms,
+            }
+        }
+        return {"reply": reply_text, "prompt": prompt_text, "stats": stats}
+
     async def _stream_llm(
         self,
         *,
@@ -117,6 +185,44 @@ class ChatService:
         for word in base.split():
             await asyncio.sleep(0.02 + random.random() * 0.03)
             yield word + (" " if not word.endswith("\n") else "")
+
+    async def _generate_vision_reply(
+        self,
+        *,
+        session_id: str,
+        prompt_text: str,
+        image_b64: str,
+        mime_type: str,
+        meta: Dict[str, Any],
+        context: List[MemoryTurn],
+        ltm_snippets: List[str],
+    ) -> str:
+        client = await self._ensure_llm_client()
+        messages = self._compose_messages(
+            user_text=prompt_text,
+            meta=meta,
+            context=context,
+            ltm_snippets=ltm_snippets,
+        )
+        content: list[Dict[str, Any]] = []
+        if prompt_text:
+            content.append({"type": "text", "text": prompt_text})
+        content.append(
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:{mime_type};base64,{image_b64}",
+                },
+            }
+        )
+        if messages:
+            messages[-1] = {"role": "user", "content": content}
+        else:  # pragma: no cover - defensive path
+            messages = [{"role": "user", "content": content}]
+        extra_options: Dict[str, Any] = {
+            "extra_headers": {"x-session-id": session_id},
+        }
+        return await client.generate_vision_reply(messages, extra_options=extra_options)
 
     async def remember_turn(self, session_id: str, *, role: str, content: str) -> None:
         if not content or not content.strip():
@@ -276,4 +382,28 @@ class ChatService:
         return (
             f"You said: '{user_text.strip()}'. That sounds interesting! I'm here to chat whenever you like. "
             "Feel free to share what you're up to!"
+        )
+
+    def _craft_image_reply(self, prompt_text: str, lang: str) -> str:
+        display_prompt = prompt_text.strip() if prompt_text else ""
+        if lang.lower().startswith("zh"):
+            if display_prompt:
+                return (
+                    f"这张图片听起来很有意思！虽然我暂时看不到实际画面，"
+                    f"但根据你的提示「{display_prompt}」我可以和你一起展开想象。"
+                    "要不要再告诉我一些细节？"
+                )
+            return (
+                "这张图片看起来很有意思！虽然我暂时无法直接看到内容，"
+                "但如果你描述更多细节，我会和你一起展开想象。"
+            )
+        if display_prompt:
+            return (
+                "That picture sounds fascinating! I can't see it directly right now, "
+                f"but with your hint \"{display_prompt}\" we can imagine it together. "
+                "Feel free to share more details!"
+            )
+        return (
+            "That picture sounds fascinating! I can't view it directly, but if you describe a few more details "
+            "we can imagine it together."
         )

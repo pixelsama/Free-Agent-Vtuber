@@ -1,4 +1,5 @@
 import asyncio
+import base64
 from typing import Iterable, List, Optional
 
 import pytest
@@ -67,15 +68,22 @@ def _make_settings(
 
 
 class _StubLLMClient:
-    def __init__(self, responses: Iterable[str]) -> None:
+    def __init__(self, responses: Iterable[str], *, vision_reply: str = "Vision response") -> None:
         self._responses = list(responses)
         self.calls: List[list[dict[str, str]]] = []
+        self.vision_calls: List[list[dict[str, object]]] = []
+        self._vision_reply = vision_reply
 
     async def stream_chat(self, messages, **kwargs):
         self.calls.append(list(messages))
         for token in self._responses:
             await asyncio.sleep(0)
             yield token
+
+    async def generate_vision_reply(self, messages, **kwargs):
+        self.vision_calls.append(list(messages))
+        await asyncio.sleep(0)
+        return self._vision_reply
 
 
 class _FailingLLMClient:
@@ -84,12 +92,18 @@ class _FailingLLMClient:
             yield ""  # pragma: no cover - ensure object is async generator
         raise RuntimeError("boom")
 
+    async def generate_vision_reply(self, messages, **kwargs):
+        raise RuntimeError("vision boom")
+
 
 class _EmptyLLMClient:
     async def stream_chat(self, messages, **kwargs):
         if False:
             yield ""  # pragma: no cover
         raise LLMStreamEmptyError("no content", tool_calls=[{"name": "dummy"}])
+
+    async def generate_vision_reply(self, messages, **kwargs):
+        raise LLMStreamEmptyError("no content")
 
 
 class _StubMemoryStore:
@@ -247,3 +261,49 @@ async def test_stream_reply_llm_logs_context_counts(caplog):
     assert records
     assert records[0].stm_turns == 2
     assert records[0].ltm_snippets == 1
+
+
+@pytest.mark.asyncio
+async def test_describe_image_with_llm():
+    stub = _StubLLMClient(["ignored"], vision_reply="这是一只可爱的猫咪。")
+    service = ChatService(
+        settings=_make_settings(enabled=True),
+        llm_client_factory=lambda: stub,
+    )
+
+    image_b64 = base64.b64encode(b"fake-bytes").decode("ascii")
+    result = await service.describe_image(
+        "sess-vision",
+        image_b64=image_b64,
+        prompt="请描述这张图片",
+        mime_type="image/png",
+        meta={"lang": "zh"},
+    )
+
+    assert result["reply"].startswith("这是一只可爱的猫咪")
+    assert result["prompt"] == "请描述这张图片"
+    assert service.last_source == "llm"
+    assert stub.vision_calls
+    last_message = stub.vision_calls[0][-1]
+    assert last_message["role"] == "user"
+    content_items = last_message["content"]
+    assert any(item.get("type") == "image_url" for item in content_items)
+
+
+@pytest.mark.asyncio
+async def test_describe_image_mock_fallback_when_llm_disabled():
+    service = ChatService(settings=_make_settings(enabled=False))
+    image_b64 = base64.b64encode(b"fake-bytes").decode("ascii")
+
+    result = await service.describe_image(
+        "sess-vision-mock",
+        image_b64=image_b64,
+        prompt=None,
+        mime_type="image/jpeg",
+        meta={"lang": "en"},
+    )
+
+    assert "imagine" in result["reply"].lower()
+    assert result["prompt"] == "请描述这张图片。"
+    assert service.last_source == "mock"
+    assert service.last_token_count > 0
