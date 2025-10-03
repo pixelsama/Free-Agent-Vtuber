@@ -13,7 +13,7 @@ from .settings import LLMSettings, OpenAISettings, settings
 
 logger = logging.getLogger(__name__)
 
-ChatMessage = Dict[str, str]
+ChatMessage = Dict[str, Any]
 
 
 class LLMNotConfiguredError(RuntimeError):
@@ -152,6 +152,74 @@ class OpenAIChatClient:
                         logger.debug("llm.stream.close_failed", exc_info=True)
 
         raise RuntimeError("LLM streaming failed after retries") from last_error
+
+    async def generate_vision_reply(
+        self,
+        messages: Sequence[ChatMessage],
+        *,
+        model: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        top_p: Optional[float] = None,
+        timeout: Optional[float] = None,
+        extra_options: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """Issue a non-streaming chat completion for multimodal prompts."""
+
+        cfg = self._llm_cfg
+        params: Dict[str, Any] = {
+            "model": model or cfg.model,
+            "messages": list(messages),
+            "temperature": temperature if temperature is not None else cfg.temperature,
+            "max_tokens": max_tokens if max_tokens is not None else cfg.max_tokens,
+            "top_p": top_p if top_p is not None else cfg.top_p,
+            "frequency_penalty": cfg.frequency_penalty,
+            "presence_penalty": cfg.presence_penalty,
+            "timeout": timeout if timeout is not None else cfg.timeout,
+        }
+        if extra_options:
+            params.update(extra_options)
+
+        attempt = 0
+        last_error: Exception | None = None
+        total_attempts = cfg.retry_limit + 1
+
+        while attempt < total_attempts:
+            attempt += 1
+            try:
+                resp = await self._client.chat.completions.create(**params)
+                logger.info(
+                    "llm.vision.complete",
+                    extra={
+                        "model": params.get("model"),
+                        "attempt": attempt,
+                        "max_tokens": params.get("max_tokens"),
+                    },
+                )
+                choices = getattr(resp, "choices", [])
+                for choice in choices:
+                    message = getattr(choice, "message", None)
+                    if not message:
+                        continue
+                    content = getattr(message, "content", None)
+                    if isinstance(content, str) and content.strip():
+                        return content
+                logger.warning(
+                    "llm.vision.empty",
+                    extra={"model": params.get("model"), "attempt": attempt},
+                )
+                raise RuntimeError("vision_no_content")
+            except Exception as exc:  # pragma: no cover - defensive catch
+                last_error = exc
+                logger.warning(
+                    "llm.vision.error",
+                    extra={"attempt": attempt, "model": params.get("model"), "error": repr(exc)},
+                )
+                if attempt >= total_attempts:
+                    break
+                await asyncio.sleep(cfg.retry_backoff_seconds * attempt)
+
+        raise RuntimeError("LLM vision completion failed after retries") from last_error
 
 
 __all__ = ["OpenAIChatClient", "LLMNotConfiguredError", "LLMStreamEmptyError", "ChatMessage"]

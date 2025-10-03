@@ -133,3 +133,79 @@ def test_chat_audio_stream_records_memory(monkeypatch, client):
     assert ("user", "你好") in recorded
     assert ("assistant", "hello") in recorded
     assert events and events[0]["transcript"] == "你好"
+
+
+def test_chat_vision_handles_text_and_image(monkeypatch, client):
+    recorded: list[tuple[str, str]] = []
+    describe_calls: list[dict] = []
+
+    async def fake_describe_image(*, session_id: str, image_b64: str, prompt: str | None, mime_type: str, meta: dict):
+        describe_calls.append(
+            {
+                "session_id": session_id,
+                "prompt": prompt,
+                "mime_type": mime_type,
+                "meta": meta,
+            }
+        )
+        return {"reply": "看到了一只小猫。", "prompt": prompt, "stats": {"chat": {"source": "llm"}}}
+
+    async def fake_remember(session_id: str, *, role: str, content: str) -> None:
+        recorded.append((role, content))
+
+    events: list[dict] = []
+
+    def fake_emit(**kwargs):
+        events.append(kwargs)
+
+    monkeypatch.setattr(dialog_app.chat_service, "describe_image", fake_describe_image)
+    monkeypatch.setattr(dialog_app.chat_service, "remember_turn", fake_remember)
+    monkeypatch.setattr(dialog_app, "_emit_async_events", fake_emit)
+
+    payload = {
+        "sessionId": "sess-vision",
+        "image": base64.b64encode(b"image-bytes").decode("ascii"),
+        "text": "这张图片里有什么？",
+        "meta": {"lang": "zh"},
+    }
+
+    resp = client.post("/chat/vision", json=payload)
+
+    assert resp.status_code == 200
+    assert describe_calls and describe_calls[0]["prompt"] == "这张图片里有什么？"
+    assert describe_calls[0]["meta"]["input_mode"] == "image"
+    assert ("user", "这张图片里有什么？\n[图片输入]") in recorded
+    assert ("assistant", "看到了一只小猫。") in recorded
+    assert events and events[0]["transcript"].startswith("这张图片里有什么？")
+    body = resp.json()
+    assert body["prompt"] == "这张图片里有什么？"
+    assert body["reply"] == "看到了一只小猫。"
+
+
+def test_chat_vision_handles_image_only(monkeypatch, client):
+    recorded: list[tuple[str, str]] = []
+    describe_prompts: list[str | None] = []
+
+    async def fake_describe_image(*, session_id: str, image_b64: str, prompt: str | None, mime_type: str, meta: dict):
+        describe_prompts.append(prompt)
+        return {"reply": "默认描述", "prompt": prompt or "请描述这张图片。", "stats": {}}
+
+    async def fake_remember(session_id: str, *, role: str, content: str) -> None:
+        recorded.append((role, content))
+
+    monkeypatch.setattr(dialog_app.chat_service, "describe_image", fake_describe_image)
+    monkeypatch.setattr(dialog_app.chat_service, "remember_turn", fake_remember)
+    monkeypatch.setattr(dialog_app, "_emit_async_events", lambda **_: None)
+
+    payload = {
+        "sessionId": "sess-vision-empty",
+        "image": base64.b64encode(b"image-bytes").decode("ascii"),
+    }
+
+    resp = client.post("/chat/vision", json=payload)
+
+    assert resp.status_code == 200
+    assert describe_prompts and describe_prompts[0] is None
+    assert recorded[0] == ("user", "[图片输入]")
+    assert recorded[1] == ("assistant", "默认描述")
+    assert resp.json()["prompt"] == "请描述这张图片。"
