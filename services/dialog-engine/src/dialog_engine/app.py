@@ -24,6 +24,7 @@ chat_service = ChatService()
 logger = logging.getLogger(__name__)
 SYNC_TTS_STREAMING = os.getenv("SYNC_TTS_STREAMING", "false").lower() in {"1", "true", "yes", "on"}
 ENABLE_ASYNC_EXT = os.getenv("ENABLE_ASYNC_EXT", "false").lower() in {"1", "true", "yes", "on"}
+VISION_MAX_BYTES = int(os.getenv("VISION_MAX_BYTES", 4 * 1024 * 1024))
 _flush_task = None
 
 try:
@@ -429,6 +430,94 @@ async def chat_audio_stream(request: Request) -> StreamingResponse:
 
     headers = {"Cache-Control": "no-cache", "Connection": "keep-alive"}
     return StreamingResponse(event_generator(), media_type="text/event-stream", headers=headers)
+
+
+@app.post("/chat/vision")
+async def chat_vision(request: Request) -> JSONResponse:
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid json")
+
+    session_id = str(body.get("sessionId") or "default")
+    raw_image = body.get("image")
+    if not isinstance(raw_image, str) or not raw_image.strip():
+        raise HTTPException(status_code=400, detail="image required")
+
+    try:
+        image_bytes = base64.b64decode(raw_image, validate=True)
+    except (binascii.Error, TypeError):
+        raise HTTPException(status_code=400, detail="invalid image encoding")
+
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="image required")
+    if len(image_bytes) > VISION_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="image payload too large")
+
+    prompt_candidates: list[str] = []
+    for key in ("prompt", "text", "transcript"):
+        value = body.get(key)
+        if isinstance(value, str):
+            stripped = value.strip()
+            if stripped:
+                prompt_candidates.append(stripped)
+    prompt = prompt_candidates[0] if prompt_candidates else None
+    mime_type_raw = body.get("mimeType")
+    mime_type = (
+        mime_type_raw.strip()
+        if isinstance(mime_type_raw, str) and mime_type_raw.strip()
+        else "image/png"
+    )
+
+    meta_raw = body.get("meta")
+    meta = dict(meta_raw) if isinstance(meta_raw, dict) else {}
+    meta.setdefault("input_mode", "image")
+
+    image_b64 = base64.b64encode(image_bytes).decode("ascii")
+
+    user_turn_parts: list[str] = []
+    if prompt:
+        user_turn_parts.append(prompt)
+    user_turn_parts.append("[图片输入]")
+    user_turn = "\n".join(user_turn_parts)
+    await chat_service.remember_turn(session_id=session_id, role="user", content=user_turn)
+
+    try:
+        result = await chat_service.describe_image(
+            session_id=session_id,
+            image_b64=image_b64,
+            prompt=prompt,
+            mime_type=mime_type,
+            meta=meta,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:  # pragma: no cover - guard downstream failures
+        logger.exception("chat.vision.failed", extra={"sessionId": session_id})
+        raise HTTPException(status_code=502, detail="vision_failed") from exc
+
+    reply_text = str(result.get("reply", ""))
+    prompt_text = str(result.get("prompt") or (prompt or ""))
+    stats = result.get("stats") or {}
+
+    await chat_service.remember_turn(session_id=session_id, role="assistant", content=reply_text)
+
+    response_payload = {
+        "sessionId": session_id,
+        "prompt": prompt_text,
+        "reply": reply_text,
+        "stats": stats,
+    }
+
+    _emit_async_events(
+        session_id=session_id,
+        body=body,
+        transcript=user_turn,
+        reply_text=reply_text,
+        stats=stats,
+    )
+
+    return JSONResponse(response_payload)
 
 
 @app.post("/tts/mock")
