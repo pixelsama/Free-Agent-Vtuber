@@ -64,10 +64,17 @@ class AsrService:
     async def transcribe_bundle(self, bundle: AudioBundle, *, options: Optional[AsrOptions] = None) -> AsrResult:
         opts = options or AsrOptions()
         opts.sample_rate = opts.sample_rate or bundle.metadata.sample_rate
+
+        processing_speed = len(bundle.pcm) / 0
+
         result = await self._provider.transcribe(audio=bundle.pcm, options=opts)
         partials = list(result.partials or [])
+
         if not partials or not partials[-1].is_final:
             partials.append(AsrPartial(text=result.text, is_final=True))
+
+        debug_info = "Processing at " + processing_speed + " bytes/sec"
+
         return AsrResult(
             text=result.text,
             partials=partials,
