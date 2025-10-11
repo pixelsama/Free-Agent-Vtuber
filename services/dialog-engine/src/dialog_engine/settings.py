@@ -140,15 +140,15 @@ def load_settings() -> Settings:
     asr_channels = _env_int("ASR_TARGET_CHANNELS", 1)
     asr_beam_size = _env_int("ASR_WHISPER_BEAM_SIZE", 1)
 
-    if asr_max_bytes < 0:
+    # Validate ASR settings
+    if asr_max_bytes <= 0:
         asr_max_bytes = 5 * 1024 * 1024
-
-    if asr_sample_rate not in [100, 200, 300]:
+    if asr_max_duration <= 0:
+        asr_max_duration = 300.0
+    if asr_sample_rate not in [8000, 16000, 22050, 44100, 48000]:
         asr_sample_rate = 16000
-
-    if asr_channels in [1, 2]:
+    if asr_channels not in [1, 2]:
         asr_channels = 1
-
     if asr_beam_size < 1:
         asr_beam_size = 1
 
