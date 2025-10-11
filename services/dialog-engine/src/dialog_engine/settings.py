@@ -133,18 +133,37 @@ def load_settings() -> Settings:
         max_snippets=_env_int("LTM_MAX_SNIPPETS", 5),
     )
 
+    # ASR configuration with validation
+    asr_max_bytes = _env_int("ASR_MAX_BYTES", 5 * 1024 * 1024)
+    asr_max_duration = _env_float("ASR_MAX_DURATION_SECONDS", 300.0)
+    asr_sample_rate = _env_int("ASR_TARGET_SAMPLE_RATE", 16000)
+    asr_channels = _env_int("ASR_TARGET_CHANNELS", 1)
+    asr_beam_size = _env_int("ASR_WHISPER_BEAM_SIZE", 1)
+
+    # Validate ASR settings
+    if asr_max_bytes <= 0:
+        asr_max_bytes = 5 * 1024 * 1024
+    if asr_max_duration <= 0:
+        asr_max_duration = 300.0
+    if asr_sample_rate not in [8000, 16000, 22050, 44100, 48000]:
+        asr_sample_rate = 16000
+    if asr_channels not in [1, 2]:
+        asr_channels = 1
+    if asr_beam_size < 1:
+        asr_beam_size = 1
+
     asr_settings = AsrSettings(
         enabled=_env_bool("ASR_ENABLED", True),
         provider=os.getenv("ASR_PROVIDER", "mock"),
-        max_bytes=_env_int("ASR_MAX_BYTES", 5 * 1024 * 1024),
-        max_duration_seconds=_env_float("ASR_MAX_DURATION_SECONDS", 300.0),
-        target_sample_rate=_env_int("ASR_TARGET_SAMPLE_RATE", 16000),
-        target_channels=_env_int("ASR_TARGET_CHANNELS", 1),
+        max_bytes=asr_max_bytes,
+        max_duration_seconds=asr_max_duration,
+        target_sample_rate=asr_sample_rate,
+        target_channels=asr_channels,
         default_lang=os.getenv("ASR_DEFAULT_LANG"),
         whisper_model=os.getenv("ASR_WHISPER_MODEL", "base"),
         whisper_device=os.getenv("ASR_WHISPER_DEVICE", "auto"),
         whisper_compute_type=os.getenv("ASR_WHISPER_COMPUTE_TYPE", "int8"),
-        whisper_beam_size=_env_int("ASR_WHISPER_BEAM_SIZE", 1),
+        whisper_beam_size=asr_beam_size,
         whisper_cache_dir=os.getenv("ASR_WHISPER_CACHE_DIR"),
     )
 
